@@ -42,7 +42,7 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lamb
 
 # Set AI Model
 os.environ['CHATBOT_PROVIDER'] = 'gemini'
-os.environ['GEMINI_API_KEY'] = 'AIzaSyC8OZRSixFYP-rLw2k7xjcMz6BEVvMVNRs'
+os.environ['GEMINI_API_KEY'] = 'AIzaSyBvufMoPs_qyUNU0YkV9RWHHXBcmfxRzmg'
 # Application definition
 
 INSTALLED_APPS = [

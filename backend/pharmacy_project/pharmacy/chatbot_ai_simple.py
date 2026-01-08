@@ -5,6 +5,7 @@ import os
 import json
 import logging
 import requests
+import time
 from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -18,38 +19,37 @@ class GeminiChatbot:
     1. Go to https://aistudio.google.com/app/apikey
     2. Create API key (free)
     3. Set in settings.py: os.environ['GEMINI_API_KEY'] = 'your-key'
+    
+    Free tier limits:
+    - 15 requests per minute (RPM)
+    - 1 million tokens per minute
+    - 1,500 requests per day
     """
     
-    PHARMACY_PROMPT = """You are PharmaCare AI, a helpful pharmacy assistant chatbot.
-
-Your role is to help customers with:
-- Finding medicines and health products
-- Order tracking and status
-- Medicine information (dosage, usage, side effects)
-- General health tips and advice
-- Prescription guidance
-
-Important rules:
-- Be friendly, professional, and empathetic
-- For medical emergencies, always advise calling 911
-- Don't diagnose conditions - recommend consulting a doctor
-- Keep responses concise but helpful (2-3 sentences max)
-- Use emojis occasionally to be friendly 💊
-
-Customer name: {user_name}
-"""
+    PHARMACY_PROMPT = """You are PharmaCare AI assistant. Help with medicines, orders, health tips.
+Be brief (1-2 sentences). Use emojis. Customer: {user_name}"""
 
     def __init__(self):
         self.api_key = os.environ.get('GEMINI_API_KEY')
-        # Using gemini-flash-latest - this works!
-        self.model = "gemini-flash-latest"
+        self.model = "gemini-2.0-flash"
         self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         self.conversation_history = {}
+        self.last_request_time = 0
+        self.min_request_interval = 4  # Minimum 4 seconds between requests (15 RPM = 1 per 4 sec)
         
         if not self.api_key:
             logger.warning("GEMINI_API_KEY not set!")
         else:
             logger.info(f"GeminiChatbot initialized with model: {self.model}")
+    
+    def _wait_for_rate_limit(self):
+        """Ensure we don't exceed rate limits"""
+        elapsed = time.time() - self.last_request_time
+        if elapsed < self.min_request_interval:
+            wait_time = self.min_request_interval - elapsed
+            logger.info(f"Rate limiting: waiting {wait_time:.1f}s")
+            time.sleep(wait_time)
+        self.last_request_time = time.time()
     
     def generate_response(self, user_message: str, user_id: int, user_name: str = "Customer", context: dict = None) -> str:
         if not self.api_key:
@@ -57,28 +57,23 @@ Customer name: {user_name}
             return self._smart_fallback(user_message, user_name)
         
         try:
-            # Build prompt with context
+            # Wait for rate limit
+            self._wait_for_rate_limit()
+            
+            # Build simple prompt
             system_prompt = self.PHARMACY_PROMPT.format(user_name=user_name)
             
             # Add context if available
+            context_str = ""
             if context:
                 if context.get('recent_orders'):
-                    orders_str = ", ".join([f"Order #{o['id']} ({o['status']})" for o in context['recent_orders']])
-                    system_prompt += f"\n\nCustomer's recent orders: {orders_str}"
+                    orders_str = ", ".join([f"Order #{o['id']} ({o['status']})" for o in context['recent_orders'][:2]])
+                    context_str += f" Recent orders: {orders_str}."
                 if context.get('cart_items'):
-                    system_prompt += f"\nItems in cart: {context['cart_items']}"
+                    context_str += f" Cart: {context['cart_items']} items."
             
-            # Get conversation history
-            history = self.conversation_history.get(user_id, [])
-            
-            # Build the full prompt
-            full_prompt = system_prompt + "\n\n"
-            
-            # Add history (last 2 exchanges)
-            for h in history[-4:]:
-                full_prompt += f"Customer: {h['user']}\nAssistant: {h['assistant']}\n"
-            
-            full_prompt += f"Customer: {user_message}\nAssistant:"
+            # Simple prompt format
+            full_prompt = f"{system_prompt}{context_str}\n\nCustomer says: {user_message}\n\nRespond briefly:"
             
             # Build request body
             request_body = {
@@ -91,56 +86,94 @@ Customer name: {user_name}
                 ],
                 "generationConfig": {
                     "temperature": 0.7,
-                    "maxOutputTokens": 300
+                    "maxOutputTokens": 1024,
+                    "topP": 0.9
                 }
             }
             
-            # Make API request
-            response = requests.post(
-                f"{self.api_url}?key={self.api_key}",
-                headers={"Content-Type": "application/json"},
-                json=request_body,
-                timeout=30
-            )
-            
-            logger.info(f"Gemini API response status: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
+            # Make API request with retry
+            max_retries = 2
+            for attempt in range(max_retries + 1):
+                response = requests.post(
+                    f"{self.api_url}?key={self.api_key}",
+                    headers={"Content-Type": "application/json"},
+                    json=request_body,
+                    timeout=30
+                )
                 
-                # Extract the response text
-                try:
-                    ai_response = result['candidates'][0]['content']['parts'][0]['text'].strip()
+                logger.info(f"Gemini API response status: {response.status_code} (attempt {attempt + 1})")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    # Check for candidates
+                    if 'candidates' not in result or len(result['candidates']) == 0:
+                        logger.error("No candidates in response")
+                        return self._smart_fallback(user_message, user_name)
+                    
+                    candidate = result['candidates'][0]
+                    finish_reason = candidate.get('finishReason', '')
+                    
+                    if finish_reason == 'SAFETY':
+                        logger.warning("Response blocked by safety filter")
+                        return self._smart_fallback(user_message, user_name)
+                    
+                    # Extract text from content
+                    content = candidate.get('content', {})
+                    parts = content.get('parts', [])
+                    
+                    if not parts:
+                        logger.warning(f"No parts in response. Finish reason: {finish_reason}")
+                        return self._smart_fallback(user_message, user_name)
+                    
+                    # Extract text
+                    ai_response = ""
+                    for part in parts:
+                        if 'text' in part:
+                            ai_response += part['text']
+                    
+                    ai_response = ai_response.strip()
+                    
+                    if not ai_response:
+                        logger.error("Empty text in response")
+                        return self._smart_fallback(user_message, user_name)
+                    
                     logger.info(f"AI Response: {ai_response[:100]}...")
-                except (KeyError, IndexError) as e:
-                    logger.error(f"Failed to parse response: {result}")
+                    
+                    # Save to history
+                    if user_id not in self.conversation_history:
+                        self.conversation_history[user_id] = []
+                    self.conversation_history[user_id].append({
+                        'user': user_message,
+                        'assistant': ai_response
+                    })
+                    
+                    # Keep only last 5 exchanges
+                    if len(self.conversation_history[user_id]) > 5:
+                        self.conversation_history[user_id] = self.conversation_history[user_id][-5:]
+                    
+                    return ai_response
+                
+                elif response.status_code == 429:
+                    # Rate limited - wait and retry
+                    if attempt < max_retries:
+                        wait_time = (attempt + 1) * 5  # 5s, 10s
+                        logger.warning(f"Rate limited, waiting {wait_time}s before retry...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.warning("Rate limited after all retries")
+                        return self._smart_fallback(user_message, user_name)
+                
+                else:
+                    logger.error(f"Gemini API error: {response.status_code} - {response.text}")
                     return self._smart_fallback(user_message, user_name)
-                
-                # Save to history
-                if user_id not in self.conversation_history:
-                    self.conversation_history[user_id] = []
-                self.conversation_history[user_id].append({
-                    'user': user_message,
-                    'assistant': ai_response
-                })
-                
-                # Keep only last 10 exchanges
-                if len(self.conversation_history[user_id]) > 10:
-                    self.conversation_history[user_id] = self.conversation_history[user_id][-10:]
-                
-                return ai_response
             
-            elif response.status_code == 429:
-                logger.warning("Rate limited by Gemini API")
-                return f"I'm a bit busy right now, {user_name}. Please try again in a moment! 😊"
-            
-            else:
-                logger.error(f"Gemini API error: {response.status_code} - {response.text}")
-                return self._smart_fallback(user_message, user_name)
+            return self._smart_fallback(user_message, user_name)
                 
         except requests.exceptions.Timeout:
             logger.error("Gemini request timed out")
-            return f"I'm taking a bit longer to respond, {user_name}. Please try again! 🤔"
+            return self._smart_fallback(user_message, user_name)
         except Exception as e:
             logger.error(f"Gemini error: {e}")
             return self._smart_fallback(user_message, user_name)
@@ -150,59 +183,63 @@ Customer name: {user_name}
         msg = message.lower()
         
         # Greetings
-        if any(w in msg for w in ['hello', 'hi', 'hey', 'good morning', 'good evening', 'good afternoon']):
-            return f"Hello {user_name}! 👋 Welcome to PharmaCare! I'm here to help you with medicines, orders, and health advice. What can I assist you with today?"
+        if any(w in msg for w in ['hello', 'hi', 'hey', 'good morning', 'good evening', 'good afternoon', 'السلام', 'مرحبا']):
+            return f"Hello {user_name}! 👋 Welcome to PharmaCare! How can I help you today?"
         
         # Order related
         if any(w in msg for w in ['order', 'track', 'delivery', 'shipping', 'where is my']):
-            return f"📦 You can track your orders in the 'My Orders' section, {user_name}! There you'll see the status of all your orders."
+            return f"📦 Check your orders in 'My Orders' section, {user_name}! You'll see all order statuses there."
         
         # Headache / Pain
         if any(w in msg for w in ['headache', 'head ache', 'head pain']):
-            return f"💊 For headaches, common options include Paracetamol (Tylenol) or Ibuprofen (Advil). If headaches persist, please consult a doctor, {user_name}!"
+            return f"💊 For headaches, try Paracetamol or Ibuprofen. If it persists, consult a doctor, {user_name}!"
         
         # Fever
         if 'fever' in msg:
-            return f"🌡️ For fever, Paracetamol is commonly recommended. Stay hydrated and rest. If fever is high or persists, please see a doctor, {user_name}!"
+            return f"🌡️ For fever, Paracetamol helps. Stay hydrated! See a doctor if it's high, {user_name}."
         
         # Cold / Flu
         if any(w in msg for w in ['cold', 'flu', 'cough', 'runny nose', 'sore throat']):
-            return f"🤧 For cold and flu symptoms, try our Cold & Flu section! Rest and stay hydrated. For severe symptoms, consult a doctor, {user_name}!"
+            return f"🤧 Check our Cold & Flu products! Rest and drink fluids, {user_name}."
         
         # Pain
         if any(w in msg for w in ['pain', 'ache', 'hurt']):
-            return f"💊 For pain relief, Ibuprofen or Paracetamol are common choices. Check our Pain Relief category! For chronic pain, please consult a healthcare provider, {user_name}."
+            return f"💊 For pain relief, try Ibuprofen or Paracetamol. Check our Pain Relief section, {user_name}!"
         
         # Medicine queries
         if any(w in msg for w in ['medicine', 'drug', 'medication', 'tablet', 'pill']):
-            return f"💊 I'd be happy to help you find medicines, {user_name}! Browse our Products page or tell me what you need."
+            return f"💊 Browse our Products page to find medicines, {user_name}! What do you need?"
         
         # Price queries
         if any(w in msg for w in ['price', 'cost', 'how much']):
-            return f"💰 You can see all prices on our Products page, {user_name}. Is there a specific product you'd like to know about?"
+            return f"💰 See all prices on our Products page, {user_name}. Which product interests you?"
         
         # Prescription
         if any(w in msg for w in ['prescription', 'doctor', 'rx']):
-            return f"📋 For prescription medicines, you'll need a valid prescription. Use our 'Ask Doctor' feature to consult with a doctor, {user_name}!"
+            return f"📋 Need a prescription? Use 'Ask Doctor' to consult with a doctor, {user_name}!"
         
         # Cart
         if any(w in msg for w in ['cart', 'checkout', 'buy']):
-            return f"🛒 View your cart by clicking the cart icon. Ready to checkout? Make sure you've added all items you need, {user_name}!"
+            return f"🛒 View your cart using the cart icon, {user_name}! Ready to checkout?"
         
         # Thanks
-        if any(w in msg for w in ['thank', 'thanks']):
-            return f"You're welcome, {user_name}! 😊 Is there anything else I can help with?"
+        if any(w in msg for w in ['thank', 'thanks', 'شكر']):
+            return f"You're welcome, {user_name}! 😊 Anything else I can help with?"
         
         # Goodbye
         if any(w in msg for w in ['bye', 'goodbye']):
-            return f"Goodbye, {user_name}! 👋 Take care and stay healthy!"
+            return f"Goodbye, {user_name}! 👋 Stay healthy!"
         
         # Help
         if any(w in msg for w in ['help', 'support', 'what can you do']):
-            return f"I can help with: 🔍 Finding medicines, 📦 Order tracking, 💊 Medicine info, 🏥 Health tips. What do you need, {user_name}?"
+            return f"I help with: 💊 Medicines, 📦 Orders, 🏥 Health tips. What do you need, {user_name}?"
+        
+        # Medical history
+        if any(w in msg for w in ['allergy', 'allergies', 'condition', 'medical history']):
+            return f"📋 You can manage your medical history in the 'Medical History' section, {user_name}! Add allergies, conditions, and medications there."
         
         # Default
-        return f"Thanks for your message, {user_name}! I can help with medicines, orders, and health advice. What would you like to know? 💊"
+        return f"Hi {user_name}! 💊 I can help with medicines, orders, and health advice. What would you like to know?"
     
     def clear_history(self, user_id: int):
         """Clear conversation history for user"""
