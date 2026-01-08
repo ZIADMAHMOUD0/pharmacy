@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { productAPI, cartAPI, categoryAPI } from '../services/api';
-import { FiShoppingCart, FiSearch, FiLoader, FiFilter, FiX, FiHeart, FiStar, FiPackage } from 'react-icons/fi';
-import Image from '../components/Image';
-import ConfirmModal from '../components/ConfirmModal';
+import { FiShoppingCart, FiSearch, FiLoader, FiFilter, FiX, FiHeart, FiPackage, FiImage } from 'react-icons/fi';
 import ToastContainer from '../components/ToastContainer';
 import { useToast } from '../hooks/useToast';
 
@@ -92,16 +90,9 @@ const Products = () => {
     <div className="min-h-screen bg-gray-50">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       
-      {/* Hero Section with Background */}
-      <section 
-        className="relative py-16 overflow-hidden"
-        style={{
-          backgroundImage: 'url(/assets/images/pharmacy-bg.jpeg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 via-blue-800/85 to-purple-900/80"></div>
+      {/* Hero Section */}
+      <section className="relative py-16 overflow-hidden" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+        <div className="absolute inset-0 bg-black/20"></div>
         
         {/* Floating Elements */}
         <div className="absolute inset-0 overflow-hidden">
@@ -111,12 +102,8 @@ const Products = () => {
         
         <div className="relative z-10 container mx-auto px-6">
           <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Our Products
-            </h1>
-            <p className="text-xl text-white/80 mb-8">
-              Discover quality pharmaceutical products for your health needs
-            </p>
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Our Products</h1>
+            <p className="text-xl text-white/80 mb-8">Discover quality pharmaceutical products for your health needs</p>
             
             {/* Search Bar */}
             <div className="relative max-w-2xl">
@@ -184,7 +171,6 @@ const Products = () => {
                         ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                         : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                     }`}
-                    style={{animationDelay: `${index * 0.05}s`}}
                   >
                     <span>{category.name}</span>
                     <span className={`px-2 py-0.5 rounded-full text-sm ${selectedCategory === category.id.toString() ? 'bg-white/20' : 'bg-gray-200'}`}>
@@ -249,17 +235,29 @@ const Products = () => {
                 {filteredProducts.map((product, index) => (
                   <div 
                     key={product.id} 
-                    className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 animate-fade-in"
+                    className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-500 hover:-translate-y-2"
                     style={{ animationDelay: `${index * 0.05}s` }}
                   >
                     {/* Image */}
                     <div className="relative h-48 overflow-hidden bg-gradient-to-br from-blue-50 to-purple-50">
-                      <Image 
-                        src={product.image ? `http://localhost:8000${product.image}` : null}
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                        fallbackSrc={`https://via.placeholder.com/400x300/e0e7ff/4f46e5?text=${encodeURIComponent(product.name)}`}
-                      />
+                      {product.image_url ? (
+                        <img 
+                          src={product.image_url}
+                          alt={product.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://via.placeholder.com/400x300/e0e7ff/4f46e5?text=${encodeURIComponent(product.name)}`;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <div className="text-center">
+                            <FiImage size={48} className="mx-auto mb-2" />
+                            <p className="text-sm">No Image</p>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Badges */}
                       <div className="absolute top-3 left-3 flex flex-col gap-2">
@@ -271,6 +269,11 @@ const Products = () => {
                         {product.total_stock <= 5 && product.total_stock > 0 && (
                           <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg animate-pulse">
                             Low Stock
+                          </span>
+                        )}
+                        {product.total_stock === 0 && (
+                          <span className="bg-gray-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                            Out of Stock
                           </span>
                         )}
                       </div>
@@ -293,10 +296,7 @@ const Products = () => {
                         {product.name}
                       </h3>
                       
-                      <p className="text-sm text-gray-500 mb-1">
-                        🏭 {product.manufacturer}
-                      </p>
-                      
+                      <p className="text-sm text-gray-500 mb-1">🏭 {product.manufacturer}</p>
                       <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
                       
                       {/* Stock */}
@@ -304,7 +304,7 @@ const Products = () => {
                         {product.total_stock > 0 ? (
                           <span className="inline-flex items-center gap-2 text-green-600 text-sm font-medium">
                             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            In Stock
+                            In Stock ({product.total_stock})
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-2 text-red-600 text-sm font-medium">

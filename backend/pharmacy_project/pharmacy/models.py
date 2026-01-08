@@ -144,6 +144,149 @@ class Cart(models.Model):
         db_table = 'cart'
         unique_together = ('customer', 'product')
 
+# ============================================================================
+# PATIENT MEDICAL HISTORY MODELS
+# ============================================================================
+
+class PatientMedicalProfile(models.Model):
+    """Main medical profile for each patient/customer"""
+    patient = models.OneToOneField(User, on_delete=models.CASCADE, related_name='medical_profile')
+    blood_type = models.CharField(max_length=5, blank=True, choices=[
+        ('A+', 'A+'), ('A-', 'A-'),
+        ('B+', 'B+'), ('B-', 'B-'),
+        ('AB+', 'AB+'), ('AB-', 'AB-'),
+        ('O+', 'O+'), ('O-', 'O-'),
+    ])
+    date_of_birth = models.DateField(null=True, blank=True)
+    weight = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Weight in kg")
+    height = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Height in cm")
+    emergency_contact_name = models.CharField(max_length=100, blank=True)
+    emergency_contact_phone = models.CharField(max_length=20, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Medical Profile - {self.patient.username}"
+
+
+class Allergy(models.Model):
+    """Patient allergies"""
+    SEVERITY_CHOICES = [
+        ('mild', 'Mild'),
+        ('moderate', 'Moderate'),
+        ('severe', 'Severe'),
+        ('life_threatening', 'Life Threatening'),
+    ]
+    
+    ALLERGY_TYPE_CHOICES = [
+        ('drug', 'Drug/Medication'),
+        ('food', 'Food'),
+        ('environmental', 'Environmental'),
+        ('other', 'Other'),
+    ]
+    
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='allergies')
+    allergy_type = models.CharField(max_length=20, choices=ALLERGY_TYPE_CHOICES, default='drug')
+    allergen = models.CharField(max_length=100, help_text="Name of allergen (e.g., Penicillin, Peanuts)")
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='moderate')
+    reaction = models.TextField(blank=True, help_text="Description of allergic reaction")
+    diagnosed_date = models.DateField(null=True, blank=True)
+    diagnosed_by = models.CharField(max_length=100, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name_plural = "Allergies"
+        ordering = ['-severity', 'allergen']
+    
+    def __str__(self):
+        return f"{self.patient.username} - {self.allergen} ({self.severity})"
+
+
+class ChronicCondition(models.Model):
+    """Patient chronic conditions/diseases"""
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('managed', 'Managed'),
+        ('resolved', 'Resolved'),
+    ]
+    
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chronic_conditions')
+    condition_name = models.CharField(max_length=100, help_text="e.g., Diabetes, Hypertension, Asthma")
+    diagnosis_date = models.DateField(null=True, blank=True)
+    diagnosed_by = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-is_active', 'condition_name']
+    
+    def __str__(self):
+        return f"{self.patient.username} - {self.condition_name}"
+
+
+class CurrentMedication(models.Model):
+    """Medications patient is currently taking"""
+    FREQUENCY_CHOICES = [
+        ('once_daily', 'Once Daily'),
+        ('twice_daily', 'Twice Daily'),
+        ('three_daily', 'Three Times Daily'),
+        ('four_daily', 'Four Times Daily'),
+        ('as_needed', 'As Needed'),
+        ('weekly', 'Weekly'),
+        ('monthly', 'Monthly'),
+        ('other', 'Other'),
+    ]
+    
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='current_medications')
+    medication_name = models.CharField(max_length=100)
+    dosage = models.CharField(max_length=50, help_text="e.g., 500mg, 10ml")
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='once_daily')
+    frequency_notes = models.CharField(max_length=100, blank=True, help_text="Additional frequency info")
+    prescribing_doctor = models.CharField(max_length=100, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    reason = models.CharField(max_length=200, blank=True, help_text="Reason for taking this medication")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-is_active', 'medication_name']
+    
+    def __str__(self):
+        return f"{self.patient.username} - {self.medication_name}"
+
+
+class MedicalNote(models.Model):
+    """Doctor's medical notes for patients"""
+    NOTE_TYPE_CHOICES = [
+        ('consultation', 'Consultation'),
+        ('follow_up', 'Follow Up'),
+        ('prescription', 'Prescription Note'),
+        ('lab_result', 'Lab Result'),
+        ('general', 'General Note'),
+        ('warning', 'Warning/Alert'),
+    ]
+    
+    patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='medical_notes')
+    doctor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='doctor_notes')
+    note_type = models.CharField(max_length=20, choices=NOTE_TYPE_CHOICES, default='general')
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    is_private = models.BooleanField(default=False, help_text="Private notes only visible to doctors")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.patient.username} - {self.title} ({self.note_type})"
 
 class Question(models.Model):
     customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='questions')

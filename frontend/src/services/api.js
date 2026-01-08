@@ -4,7 +4,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000, // 10 seconds timeout
+  timeout: 10000,
 });
 
 let isRefreshing = false;
@@ -18,7 +18,6 @@ const processQueue = (error, token = null) => {
       prom.resolve(token);
     }
   });
-  
   failedQueue = [];
 };
 
@@ -37,10 +36,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If error is 401 and we haven't tried to refresh yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // If already refreshing, queue this request
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -59,7 +56,6 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
       
       if (!refreshToken) {
-        // No refresh token, logout user
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
@@ -84,7 +80,6 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         isRefreshing = false;
         
-        // Refresh failed, logout user
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
@@ -93,19 +88,15 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle other errors
     if (error.response) {
-      // Server responded with error
       const errorMessage = error.response.data?.error || 
                           error.response.data?.detail || 
                           error.response.data?.message ||
                           'An error occurred';
       error.userMessage = errorMessage;
     } else if (error.request) {
-      // Request made but no response
       error.userMessage = 'Network error. Please check your connection.';
     } else {
-      // Something else happened
       error.userMessage = 'An unexpected error occurred.';
     }
 
@@ -140,10 +131,74 @@ export const productAPI = {
   getAll: () => api.get('/products/'),
   search: (query) => api.get(`/products/search/?q=${query}`),
   getOne: (id) => api.get(`/products/${id}/`),
-  create: (data) => api.post('/products/', data),
-  update: (id, data) => api.patch(`/products/${id}/`, data),
+  
+  // Handle FormData for image upload
+  create: (data) => {
+    if (data instanceof FormData) {
+      return api.post('/products/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.post('/products/', data);
+  },
+  
+  update: (id, data) => {
+    if (data instanceof FormData) {
+      return api.patch(`/products/${id}/`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.patch(`/products/${id}/`, data);
+  },
+  
   delete: (id) => api.delete(`/products/${id}/`),
   getLowStock: () => api.get('/products/low_stock/'),
+  removeImage: (id) => api.delete(`/products/${id}/remove_image/`),
+};
+
+export const medicalProfileAPI = {
+  getMyProfile: () => api.get('/medical-profiles/my_profile/'),
+  updateMyProfile: (data) => api.patch('/medical-profiles/my_profile/', data),
+  getAll: () => api.get('/medical-profiles/'),
+  getPatientHistory: (userId) => api.get(`/medical-profiles/patient/${userId}/`),
+  getFullHistory: (profileId) => api.get(`/medical-profiles/${profileId}/full_history/`),
+};
+
+export const allergyAPI = {
+  getAll: () => api.get('/allergies/'),
+  getByPatient: (patientId) => api.get(`/allergies/?patient=${patientId}`),
+  create: (data) => api.post('/allergies/', data),
+  update: (id, data) => api.patch(`/allergies/${id}/`, data),
+  delete: (id) => api.delete(`/allergies/${id}/`),
+  checkDrug: (drugName, patientId = null) => {
+    let url = `/allergies/check_drug/?drug=${drugName}`;
+    if (patientId) url += `&patient=${patientId}`;
+    return api.get(url);
+  },
+};
+
+export const chronicConditionAPI = {
+  getAll: () => api.get('/chronic-conditions/'),
+  getByPatient: (patientId) => api.get(`/chronic-conditions/?patient=${patientId}`),
+  create: (data) => api.post('/chronic-conditions/', data),
+  update: (id, data) => api.patch(`/chronic-conditions/${id}/`, data),
+  delete: (id) => api.delete(`/chronic-conditions/${id}/`),
+};
+
+export const currentMedicationAPI = {
+  getAll: () => api.get('/current-medications/'),
+  getByPatient: (patientId) => api.get(`/current-medications/?patient=${patientId}`),
+  create: (data) => api.post('/current-medications/', data),
+  update: (id, data) => api.patch(`/current-medications/${id}/`, data),
+  delete: (id) => api.delete(`/current-medications/${id}/`),
+};
+
+export const medicalNoteAPI = {
+  getAll: () => api.get('/medical-notes/'),
+  getByPatient: (patientId) => api.get(`/medical-notes/?patient=${patientId}`),
+  create: (data) => api.post('/medical-notes/', data),
+  update: (id, data) => api.patch(`/medical-notes/${id}/`, data),
+  delete: (id) => api.delete(`/medical-notes/${id}/`),
 };
 
 export const batchAPI = {
@@ -170,7 +225,7 @@ export const orderAPI = {
   approve: (id) => api.post(`/orders/${id}/approve/`),
   reject: (id) => api.post(`/orders/${id}/reject/`),
   cancel: (id) => api.post(`/orders/${id}/cancel/`),
-  delete: (id) => api.delete(`/orders/${id}/`),  // NEW: Delete order
+  delete: (id) => api.delete(`/orders/${id}/`),
   addItem: (id, data) => api.post(`/orders/${id}/add_item/`, data),
   removeItem: (id, data) => api.post(`/orders/${id}/remove_item/`, data),
   updateItemQuantity: (id, data) => api.patch(`/orders/${id}/update_item_quantity/`, data),
@@ -182,13 +237,13 @@ export const questionAPI = {
   create: (data) => api.post('/questions/', data),
   answer: (id, data) => api.post(`/questions/${id}/answer/`, data),
   update: (id, data) => api.patch(`/questions/${id}/`, data),
-  delete: (id) => api.delete(`/questions/${id}/`),  // NEW: Delete question
+  delete: (id) => api.delete(`/questions/${id}/`),
 };
 
 export const patientRecordAPI = {
   getAll: () => api.get('/patient-records/'),
   create: (data) => api.post('/patient-records/', data),
-  delete: (id) => api.delete(`/patient-records/${id}/`),  // NEW: Delete patient record
+  delete: (id) => api.delete(`/patient-records/${id}/`),
 };
 
 export const stockRequestAPI = {
@@ -196,12 +251,12 @@ export const stockRequestAPI = {
   create: (data) => api.post('/stock-requests/', data),
   approve: (id) => api.post(`/stock-requests/${id}/approve/`),
   reject: (id) => api.post(`/stock-requests/${id}/reject/`),
-  delete: (id) => api.delete(`/stock-requests/${id}/`),  // NEW: Delete stock request
+  delete: (id) => api.delete(`/stock-requests/${id}/`),
 };
 
 export const chatAPI = {
   getMessages: () => api.get('/chat/'),
   sendMessage: (data) => api.post('/chat/', data),
-  deleteMessage: (id) => api.delete(`/chat/${id}/`),  // NEW: Delete single chat message
-  clearHistory: (all = false) => api.delete(`/chat/clear_history/${all ? '?all=true' : ''}`),  // NEW: Clear chat history
+  deleteMessage: (id) => api.delete(`/chat/${id}/`),
+  clearHistory: (all = false) => api.delete(`/chat/clear_history/${all ? '?all=true' : ''}`),
 };

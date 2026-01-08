@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate , Link  } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
@@ -18,6 +18,8 @@ import DoctorQuestions from './pages/doctor/DoctorQuestions';
 import ManageStockRequests from './pages/admin/ManageStockRequests';
 import ManageCategories from './pages/admin/ManageCategories';
 import ManageBatches from './pages/admin/ManageBatches';
+import MedicalHistory from './pages/MedicalHistory';
+import PatientMedicalRecords from './pages/doctor/PatientMedicalRecords';
 
 const PrivateRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -150,37 +152,34 @@ const Home = () => {
                 <div className={`absolute inset-0 bg-gradient-to-r ${user ? 'from-blue-400 to-purple-400' : 'from-white/20 to-white/10'} rounded-3xl transform rotate-6 opacity-20`}></div>
                 <div className={`relative ${user ? 'bg-white' : 'bg-white/10 backdrop-blur-md border border-white/20'} rounded-3xl p-8 shadow-2xl`}>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className={`${user ? 'bg-gradient-to-br from-blue-100 to-blue-200' : 'bg-white/10'} rounded-2xl p-6 text-center transform hover:scale-105 transition-transform`}>
-                      <div className="text-5xl mb-2">💊</div>
-                      <p className={`font-semibold ${user ? 'text-blue-800' : 'text-white'}`}>Medicines</p>
-                    </div>
-                    <div className={`${user ? 'bg-gradient-to-br from-purple-100 to-purple-200' : 'bg-white/10'} rounded-2xl p-6 text-center transform hover:scale-105 transition-transform`}>
-                      <div className="text-5xl mb-2">🏥</div>
-                      <p className={`font-semibold ${user ? 'text-purple-800' : 'text-white'}`}>Healthcare</p>
-                    </div>
-                    <div className={`${user ? 'bg-gradient-to-br from-pink-100 to-pink-200' : 'bg-white/10'} rounded-2xl p-6 text-center transform hover:scale-105 transition-transform`}>
-                      <div className="text-5xl mb-2">👨‍⚕️</div>
-                      <p className={`font-semibold ${user ? 'text-pink-800' : 'text-white'}`}>Doctors</p>
-                    </div>
-                    <div className={`${user ? 'bg-gradient-to-br from-green-100 to-green-200' : 'bg-white/10'} rounded-2xl p-6 text-center transform hover:scale-105 transition-transform`}>
-                      <div className="text-5xl mb-2">🚚</div>
-                      <p className={`font-semibold ${user ? 'text-green-800' : 'text-white'}`}>Delivery</p>
-                    </div>
+                    {[
+                      { icon: '💊', label: 'Medicines', count: '500+' },
+                      { icon: '🏥', label: 'Pharmacies', count: '50+' },
+                      { icon: '👨‍⚕️', label: 'Doctors', count: '100+' },
+                      { icon: '🚚', label: 'Deliveries', count: '10K+' },
+                    ].map((item, i) => (
+                      <div key={i} className={`${user ? 'bg-gray-50' : 'bg-white/10'} rounded-xl p-4 text-center`}>
+                        <div className="text-4xl mb-2">{item.icon}</div>
+                        <div className={`text-2xl font-bold ${user ? 'text-gray-800' : 'text-white'}`}>{item.count}</div>
+                        <div className={user ? 'text-gray-500' : 'text-white/70'}>{item.label}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
-          {user && (
-            <div className="hidden md:block mt-12">
-              <DashboardCards user={user} />
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Features Section - Only for non-logged users */}
+      {/* Dashboard Cards for logged users (desktop) */}
+      {user && (
+        <div className="hidden md:block py-16 px-6 bg-gradient-to-b from-white to-gray-50">
+          <DashboardCards user={user} />
+        </div>
+      )}
+
+      {/* Features Section for non-logged users */}
       {!user && (
         <div 
           className="relative py-24"
@@ -238,6 +237,7 @@ const DashboardCards = ({ user }) => (
           <DashboardCard to="/cart" icon="🛒" title="My Cart" description="View your shopping cart" gradient="from-green-500 to-teal-500" />
           <DashboardCard to="/orders" icon="📦" title="Track Orders" description="Check order status" gradient="from-purple-500 to-pink-500" />
           <DashboardCard to="/ask-doctor" icon="👨‍⚕️" title="Ask Doctor" description="Get medical advice" gradient="from-yellow-500 to-orange-500" />
+          <DashboardCard to="/medical-history" icon="❤️" title="Medical History" description="Manage health records" gradient="from-red-500 to-pink-500" />
           <DashboardCard to="/chatbot" icon="💬" title="Chat Assistant" description="Get instant help" gradient="from-pink-500 to-rose-500" />
           <DashboardCard to="/profile" icon="👤" title="My Profile" description="Manage your account" gradient="from-indigo-500 to-blue-500" />
         </>
@@ -261,7 +261,8 @@ const DashboardCards = ({ user }) => (
       {user.role === 'doctor' && (
         <>
           <DashboardCard to="/doctor/questions" icon="❓" title="Patient Questions" description="Answer queries" gradient="from-blue-500 to-purple-500" />
-          <DashboardCard to="/profile" icon="👤" title="My Profile" description="Manage account" gradient="from-green-500 to-teal-500" />
+          <DashboardCard to="/doctor/patient-records" icon="📋" title="Patient Records" description="View medical histories" gradient="from-green-500 to-teal-500" />
+          <DashboardCard to="/profile" icon="👤" title="My Profile" description="Manage account" gradient="from-indigo-500 to-blue-500" />
         </>
       )}
     </div>
@@ -309,6 +310,7 @@ function App() {
             <Route path="/orders" element={<PrivateRoute allowedRoles={['customer']}><Orders /></PrivateRoute>} />
             <Route path="/ask-doctor" element={<PrivateRoute allowedRoles={['customer']}><AskDoctor /></PrivateRoute>} />
             <Route path="/chatbot" element={<PrivateRoute allowedRoles={['customer']}><Chatbot /></PrivateRoute>} />
+            <Route path="/medical-history" element={<PrivateRoute allowedRoles={['customer']}><MedicalHistory /></PrivateRoute>} />
             
             {/* Admin Routes */}
             <Route path="/admin/users" element={<PrivateRoute allowedRoles={['admin']}><ManageUsers /></PrivateRoute>} />
@@ -323,6 +325,7 @@ function App() {
             
             {/* Doctor Routes */}
             <Route path="/doctor/questions" element={<PrivateRoute allowedRoles={['doctor']}><DoctorQuestions /></PrivateRoute>} />
+            <Route path="/doctor/patient-records" element={<PrivateRoute allowedRoles={['doctor', 'admin']}><PatientMedicalRecords /></PrivateRoute>} />
             
             {/* Common Routes */}
             <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />

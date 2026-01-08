@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { FiShoppingCart, FiUser, FiLogOut, FiMenu, FiX, FiHome } from 'react-icons/fi';
+import { FiShoppingCart, FiUser, FiLogOut, FiMenu, FiX, FiHome, FiHeart } from 'react-icons/fi';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -60,6 +60,7 @@ const Navbar = () => {
                       <NavLink to="/cart" icon={<FiShoppingCart />} label="Cart" isActive={isActive('/cart')} isScrolled={isScrolled} />
                       <NavLink to="/orders" icon="📦" label="Orders" isActive={isActive('/orders')} isScrolled={isScrolled} />
                       <NavLink to="/ask-doctor" icon="👨‍⚕️" label="Ask Doctor" isActive={isActive('/ask-doctor')} isScrolled={isScrolled} />
+                      <NavLink to="/medical-history" icon={<FiHeart />} label="Medical History" isActive={isActive('/medical-history')} isScrolled={isScrolled} />
                       <NavLink to="/chatbot" icon="💬" label="Chat" isActive={isActive('/chatbot')} isScrolled={isScrolled} />
                     </>
                   )}
@@ -84,6 +85,7 @@ const Navbar = () => {
                     <>
                       <NavLink to="/" icon={<FiHome />} label="Home" isActive={isActive('/')} isScrolled={isScrolled} />
                       <NavLink to="/doctor/questions" icon="❓" label="Questions" isActive={isActive('/doctor/questions')} isScrolled={isScrolled} />
+                      <NavLink to="/doctor/patient-records" icon="📋" label="Patient Records" isActive={isActive('/doctor/patient-records')} isScrolled={isScrolled} />
                     </>
                   )}
                 </div>
@@ -170,6 +172,7 @@ const Navbar = () => {
                     <MobileNavLink to="/cart" icon={<FiShoppingCart />} label="Cart" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
                     <MobileNavLink to="/orders" icon="📦" label="Orders" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
                     <MobileNavLink to="/ask-doctor" icon="👨‍⚕️" label="Ask Doctor" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
+                    <MobileNavLink to="/medical-history" icon={<FiHeart />} label="Medical History" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
                     <MobileNavLink to="/chatbot" icon="💬" label="Chat" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
                   </>
                 )}
@@ -194,6 +197,7 @@ const Navbar = () => {
                   <>
                     <MobileNavLink to="/" icon={<FiHome />} label="Home" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
                     <MobileNavLink to="/doctor/questions" icon="❓" label="Questions" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
+                    <MobileNavLink to="/doctor/patient-records" icon="📋" label="Patient Records" onClick={() => setMobileMenuOpen(false)} isScrolled={isScrolled} />
                   </>
                 )}
                 <div className={`pt-2 border-t ${isScrolled ? 'border-gray-200' : 'border-white/20'}`}>

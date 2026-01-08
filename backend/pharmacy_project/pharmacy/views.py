@@ -95,6 +95,41 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
     
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        # Handle image - if empty string or 'null', don't update it
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        if 'image' in data and (data['image'] == '' or data['image'] == 'null' or data['image'] is None):
+            del data['image']
+        
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['delete'])
+    def remove_image(self, request, pk=None):
+        """Remove product image"""
+        product = self.get_object()
+        if product.image:
+            product.image.delete()
+            product.save()
+            return Response({'message': 'Image removed successfully'})
+        return Response({'error': 'No image to remove'}, status=status.HTTP_400_BAD_REQUEST)
+    
     @action(detail=False, methods=['get'])
     def search(self, request):
         query = request.query_params.get('q', '')
@@ -302,11 +337,10 @@ class ProductBatchViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = ProductBatch.objects.all()
         product_id = self.request.query_params.get('product')
         if product_id:
-            queryset = queryset.filter(product_id=product_id)
-        return queryset
+            return ProductBatch.objects.filter(product_id=product_id)
+        return ProductBatch.objects.all()
     
     @action(detail=False, methods=['get'])
     def expired(self, request):
@@ -316,8 +350,11 @@ class ProductBatchViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def expiring_soon(self, request):
         days = int(request.query_params.get('days', 30))
-        threshold = timezone.now().date() + timedelta(days=days)
-        batches = ProductBatch.objects.filter(expiry_date__lte=threshold, expiry_date__gte=timezone.now().date())
+        cutoff = timezone.now().date() + timedelta(days=days)
+        batches = ProductBatch.objects.filter(
+            expiry_date__lte=cutoff,
+            expiry_date__gte=timezone.now().date()
+        )
         return Response(self.get_serializer(batches, many=True).data)
 
 
@@ -329,15 +366,270 @@ class CartViewSet(viewsets.ModelViewSet):
         return Cart.objects.filter(customer=self.request.user)
     
     def create(self, request):
+        product_id = request.data.get('product')
+        quantity = int(request.data.get('quantity', 1))
+        
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if product.total_stock < quantity:
+            return Response({'error': 'Insufficient stock'}, status=status.HTTP_400_BAD_REQUEST)
+        
         cart_item, created = Cart.objects.get_or_create(
-            customer=request.user,
-            product_id=request.data.get('product'),
-            defaults={'quantity': request.data.get('quantity', 1)}
+            customer=request.user, product=product,
+            defaults={'quantity': quantity}
         )
         if not created:
-            cart_item.quantity += int(request.data.get('quantity', 1))
+            cart_item.quantity += quantity
             cart_item.save()
+        
         return Response(CartSerializer(cart_item).data, status=status.HTTP_201_CREATED)
+
+
+# ============================================================================
+# PATIENT MEDICAL HISTORY VIEWSETS - FIXED VERSION
+# ============================================================================
+
+class PatientMedicalProfileViewSet(viewsets.ModelViewSet):
+    """
+    Patient Medical Profile
+    - Customers can view/edit their own profile
+    - Doctors can view all patient profiles
+    """
+    queryset = PatientMedicalProfile.objects.all()
+    serializer_class = PatientMedicalProfileSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'doctor' or user.role == 'admin':
+            return PatientMedicalProfile.objects.all()
+        return PatientMedicalProfile.objects.filter(patient=user)
+    
+    def get_serializer_class(self):
+        if self.action in ['full_history', 'my_profile', 'patient_history']:
+            return FullMedicalHistorySerializer
+        return PatientMedicalProfileSerializer
+    
+    @action(detail=False, methods=['get', 'post', 'patch'])
+    def my_profile(self, request):
+        """Get or create/update current user's medical profile"""
+        profile, created = PatientMedicalProfile.objects.get_or_create(patient=request.user)
+        
+        if request.method == 'GET':
+            serializer = FullMedicalHistorySerializer(profile, context={'request': request})
+            return Response(serializer.data)
+        
+        # POST or PATCH - update profile
+        serializer = PatientMedicalProfileSerializer(profile, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            # Return full history after update
+            full_serializer = FullMedicalHistorySerializer(profile, context={'request': request})
+            return Response(full_serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['get'], url_path='patient/(?P<user_id>[^/.]+)')
+    def patient_history(self, request, user_id=None):
+        """
+        Get full medical history for a patient BY USER ID (for doctors)
+        URL: /api/medical-profiles/patient/{user_id}/
+        """
+        if request.user.role not in ['doctor', 'admin']:
+            return Response({'error': 'Only doctors can view patient history'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            patient = User.objects.get(id=user_id)
+            profile, created = PatientMedicalProfile.objects.get_or_create(patient=patient)
+            
+            serializer = FullMedicalHistorySerializer(profile, context={'request': request})
+            return Response(serializer.data)
+        except User.DoesNotExist:
+            return Response({'error': 'Patient not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['get'])
+    def full_history(self, request, pk=None):
+        """Get full medical history by PROFILE ID (legacy support)"""
+        if request.user.role not in ['doctor', 'admin']:
+            return Response({'error': 'Only doctors can view full history'}, status=status.HTTP_403_FORBIDDEN)
+        
+        profile = self.get_object()
+        serializer = FullMedicalHistorySerializer(profile, context={'request': request})
+        return Response(serializer.data)
+
+
+class AllergyViewSet(viewsets.ModelViewSet):
+    """Patient Allergies"""
+    queryset = Allergy.objects.all()
+    serializer_class = AllergySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'doctor' or user.role == 'admin':
+            patient_id = self.request.query_params.get('patient')
+            if patient_id:
+                return Allergy.objects.filter(patient_id=patient_id)
+            return Allergy.objects.all()
+        return Allergy.objects.filter(patient=user)
+    
+    def perform_create(self, serializer):
+        if self.request.user.role == 'doctor':
+            patient_id = self.request.data.get('patient')
+            if patient_id:
+                serializer.save(patient_id=patient_id)
+                return
+        serializer.save(patient=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def check_drug(self, request):
+        """Check if user is allergic to a specific drug"""
+        drug_name = request.query_params.get('drug', '').lower()
+        patient_id = request.query_params.get('patient')
+        
+        if patient_id and request.user.role in ['doctor', 'admin']:
+            allergies = Allergy.objects.filter(
+                patient_id=patient_id,
+                allergy_type='drug',
+                is_active=True,
+                allergen__icontains=drug_name
+            )
+        else:
+            allergies = Allergy.objects.filter(
+                patient=request.user,
+                allergy_type='drug',
+                is_active=True,
+                allergen__icontains=drug_name
+            )
+        
+        if allergies.exists():
+            return Response({
+                'is_allergic': True,
+                'allergies': AllergySerializer(allergies, many=True).data,
+                'warning': f'⚠️ Warning: Recorded allergy to {drug_name}!'
+            })
+        return Response({'is_allergic': False})
+
+
+class ChronicConditionViewSet(viewsets.ModelViewSet):
+    """Patient Chronic Conditions"""
+    queryset = ChronicCondition.objects.all()
+    serializer_class = ChronicConditionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'doctor' or user.role == 'admin':
+            patient_id = self.request.query_params.get('patient')
+            if patient_id:
+                return ChronicCondition.objects.filter(patient_id=patient_id)
+            return ChronicCondition.objects.all()
+        return ChronicCondition.objects.filter(patient=user)
+    
+    def perform_create(self, serializer):
+        if self.request.user.role == 'doctor':
+            patient_id = self.request.data.get('patient')
+            if patient_id:
+                serializer.save(patient_id=patient_id)
+                return
+        serializer.save(patient=self.request.user)
+
+
+class CurrentMedicationViewSet(viewsets.ModelViewSet):
+    """Patient Current Medications"""
+    queryset = CurrentMedication.objects.all()
+    serializer_class = CurrentMedicationSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'doctor' or user.role == 'admin':
+            patient_id = self.request.query_params.get('patient')
+            if patient_id:
+                return CurrentMedication.objects.filter(patient_id=patient_id)
+            return CurrentMedication.objects.all()
+        return CurrentMedication.objects.filter(patient=user)
+    
+    def perform_create(self, serializer):
+        if self.request.user.role == 'doctor':
+            patient_id = self.request.data.get('patient')
+            if patient_id:
+                serializer.save(patient_id=patient_id)
+                return
+        serializer.save(patient=self.request.user)
+
+
+class MedicalNoteViewSet(viewsets.ModelViewSet):
+    """Medical Notes (Doctors only can create, edit, delete)"""
+    queryset = MedicalNote.objects.all()
+    serializer_class = MedicalNoteSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'doctor' or user.role == 'admin':
+            patient_id = self.request.query_params.get('patient')
+            if patient_id:
+                return MedicalNote.objects.filter(patient_id=patient_id)
+            return MedicalNote.objects.all()
+        return MedicalNote.objects.filter(patient=user, is_private=False)
+    
+    def create(self, request, *args, **kwargs):
+        if request.user.role != 'doctor':
+            return Response({'error': 'Only doctors can create medical notes'}, status=status.HTTP_403_FORBIDDEN)
+        
+        patient_id = request.data.get('patient')
+        if not patient_id:
+            return Response({'error': 'Patient ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        note = MedicalNote.objects.create(
+            patient_id=patient_id,
+            doctor=request.user,
+            note_type=request.data.get('note_type', 'general'),
+            title=request.data.get('title'),
+            content=request.data.get('content'),
+            is_private=request.data.get('is_private', False)
+        )
+        return Response(MedicalNoteSerializer(note).data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """Update a medical note (only the doctor who created it)"""
+        note = self.get_object()
+        
+        if request.user.role != 'doctor':
+            return Response({'error': 'Only doctors can edit medical notes'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Optional: Only allow the doctor who created the note to edit it
+        # if note.doctor != request.user:
+        #     return Response({'error': 'You can only edit your own notes'}, status=status.HTTP_403_FORBIDDEN)
+        
+        note.note_type = request.data.get('note_type', note.note_type)
+        note.title = request.data.get('title', note.title)
+        note.content = request.data.get('content', note.content)
+        note.is_private = request.data.get('is_private', note.is_private)
+        note.save()
+        
+        return Response(MedicalNoteSerializer(note).data)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """PATCH - Partial update"""
+        return self.update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Delete a medical note (only doctors)"""
+        note = self.get_object()
+        
+        if request.user.role != 'doctor':
+            return Response({'error': 'Only doctors can delete medical notes'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Optional: Only allow the doctor who created the note to delete it
+        # if note.doctor != request.user:
+        #     return Response({'error': 'You can only delete your own notes'}, status=status.HTTP_403_FORBIDDEN)
+        
+        note.delete()
+        return Response({'message': 'Note deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
 
 class QuestionViewSet(viewsets.ModelViewSet):
@@ -348,9 +640,9 @@ class QuestionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'customer':
-            return Question.objects.filter(customer=user)
+            return Question.objects.filter(customer=user).order_by('-created_at')
         elif user.role == 'doctor':
-            return Question.objects.all()
+            return Question.objects.all().order_by('-created_at')
         return Question.objects.none()
     
     def create(self, request, *args, **kwargs):
@@ -360,62 +652,38 @@ class QuestionViewSet(viewsets.ModelViewSet):
             question_text=request.data.get('question_text')
         )
         return Response(QuestionSerializer(question).data, status=status.HTTP_201_CREATED)
+    
     def update(self, request, *args, **kwargs):
-        """Allow user to edit their unanswered questions"""
         question = self.get_object()
-        
-        # Check if user owns this question
         if question.customer != request.user:
-            return Response(
-                {'error': 'You can only edit your own questions'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check if question is already answered
+            return Response({'error': 'You can only edit your own questions'}, status=status.HTTP_403_FORBIDDEN)
         if question.is_answered:
-            return Response(
-                {'error': 'Cannot edit an answered question'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'Cannot edit an answered question'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Update the question
         question.title = request.data.get('title', question.title)
         question.question_text = request.data.get('question_text', question.question_text)
         question.save()
-        
         return Response(QuestionSerializer(question).data)
     
     def partial_update(self, request, *args, **kwargs):
-        """Same as update for PATCH requests"""
         return self.update(request, *args, **kwargs)
     
     def destroy(self, request, *args, **kwargs):
-        """Allow user to delete their unanswered questions"""
         question = self.get_object()
-        
-        # Check if user owns this question
         if question.customer != request.user:
-            return Response(
-                {'error': 'You can only delete your own questions'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check if question is already answered
+            return Response({'error': 'You can only delete your own questions'}, status=status.HTTP_403_FORBIDDEN)
         if question.is_answered:
-            return Response(
-                {'error': 'Cannot delete an answered question'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'Cannot delete an answered question'}, status=status.HTTP_400_BAD_REQUEST)
         
         question.delete()
-        return Response(
-            {'message': 'Question deleted successfully'},
-            status=status.HTTP_204_NO_CONTENT
-        )
+        return Response({'message': 'Question deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
     
     @action(detail=True, methods=['post'])
     def answer(self, request, pk=None):
         question = self.get_object()
+        if request.user.role != 'doctor':
+            return Response({'error': 'Only doctors can answer questions'}, status=status.HTTP_403_FORBIDDEN)
+        
         question.answer = request.data.get('answer')
         question.answered_by = request.user
         question.is_answered = True
@@ -520,7 +788,7 @@ class ChatMessageViewSet(viewsets.ModelViewSet):
         """Lazy load chatbot"""
         if cls._chatbot is None:
             try:
-                from .chatbot_ai import get_chatbot_instance
+                from .chatbot_ai_simple import get_chatbot_instance
                 cls._chatbot = get_chatbot_instance()
                 logger.info("AI Chatbot loaded successfully!")
             except Exception as e:
