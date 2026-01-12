@@ -114,20 +114,26 @@ class PatientMedicalProfileSerializer(serializers.ModelSerializer):
 
 
 class AllergySerializer(serializers.ModelSerializer):
-    patient_name = serializers.CharField(source='patient.get_full_name', read_only=True)
+    # Declared field - MUST also be in Meta.fields!
+    patient_name = serializers.CharField(source='patient.username', read_only=True)
     severity_display = serializers.CharField(source='get_severity_display', read_only=True)
     allergy_type_display = serializers.CharField(source='get_allergy_type_display', read_only=True)
     
     class Meta:
         model = Allergy
         fields = [
-            'id', 'patient', 'patient_name', 'allergy_type', 'allergy_type_display',
-            'allergen', 'severity', 'severity_display', 'reaction',
-            'diagnosed_date', 'diagnosed_by', 'is_active',
-            'created_at', 'updated_at'
+            'id', 
+            'patient',           # ForeignKey
+            'patient_name',      # <-- THIS WAS MISSING! Declared field MUST be in fields list
+            'allergen', 
+            'allergy_type', 
+            'allergy_type_display',
+            'severity', 
+            'severity_display', 
+            'reaction',
+            'created_at'
         ]
-        read_only_fields = ['patient']
-
+        read_only_fields = ['id', 'patient', 'patient_name', 'created_at', 'severity_display', 'allergy_type_display']
 
 class ChronicConditionSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.get_full_name', read_only=True)

@@ -14,13 +14,14 @@ router.register('cart', CartViewSet, basename='cart')
 router.register('questions', QuestionViewSet)
 router.register('patient-records', PatientRecordViewSet)
 router.register('stock-requests', StockRequestViewSet)
-router.register('chat', ChatMessageViewSet, basename='chat')
 router.register(r'medical-profiles', PatientMedicalProfileViewSet)
-router.register(r'allergies', AllergyViewSet)
+router.register(r'allergies', AllergyViewSet, basename='allergy')
 router.register(r'chronic-conditions', ChronicConditionViewSet)
 router.register(r'current-medications', CurrentMedicationViewSet)
 router.register(r'medical-notes', MedicalNoteViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('chat/', ChatView.as_view(), name='chat'),
+    path('chat/history/', ChatHistoryView.as_view(), name='chat-history'),
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

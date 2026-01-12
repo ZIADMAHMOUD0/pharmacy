@@ -12,6 +12,11 @@ from .models import *
 from .serializers import *
 from datetime import datetime, timedelta
 import logging
+from rest_framework.views import APIView
+from django.http import StreamingHttpResponse
+import json
+import logging
+from .chatbot_ai_simple import get_chatbot_instance
 
 logger = logging.getLogger(__name__)
 
@@ -461,56 +466,48 @@ class PatientMedicalProfileViewSet(viewsets.ModelViewSet):
 
 
 class AllergyViewSet(viewsets.ModelViewSet):
-    """Patient Allergies"""
-    queryset = Allergy.objects.all()
+    """ViewSet for managing patient allergies"""
+    queryset = Allergy.objects.all()  # <-- ADD THIS LINE!
     serializer_class = AllergySerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
+        """Filter allergies based on user role"""
         user = self.request.user
-        if user.role == 'doctor' or user.role == 'admin':
+        # Start with base queryset
+        qs = Allergy.objects.all()
+        
+        # Filter based on role
+        if hasattr(user, 'role') and user.role in ['doctor', 'admin', 'pharmacist']:
             patient_id = self.request.query_params.get('patient')
             if patient_id:
-                return Allergy.objects.filter(patient_id=patient_id)
-            return Allergy.objects.all()
-        return Allergy.objects.filter(patient=user)
+                return qs.filter(patient_id=patient_id)
+            return qs
+        
+        # Regular users only see their own allergies
+        return qs.filter(patient=user)
     
     def perform_create(self, serializer):
-        if self.request.user.role == 'doctor':
-            patient_id = self.request.data.get('patient')
-            if patient_id:
-                serializer.save(patient_id=patient_id)
-                return
+        """Automatically set the patient to the current user"""
         serializer.save(patient=self.request.user)
     
     @action(detail=False, methods=['get'])
     def check_drug(self, request):
-        """Check if user is allergic to a specific drug"""
-        drug_name = request.query_params.get('drug', '').lower()
-        patient_id = request.query_params.get('patient')
+        """Check if user has allergy to a specific drug"""
+        drug = request.query_params.get('drug', '')
+        if not drug:
+            return Response({'error': 'Drug parameter required'}, status=400)
         
-        if patient_id and request.user.role in ['doctor', 'admin']:
-            allergies = Allergy.objects.filter(
-                patient_id=patient_id,
-                allergy_type='drug',
-                is_active=True,
-                allergen__icontains=drug_name
-            )
-        else:
-            allergies = Allergy.objects.filter(
-                patient=request.user,
-                allergy_type='drug',
-                is_active=True,
-                allergen__icontains=drug_name
-            )
+        allergies = Allergy.objects.filter(
+            patient=request.user,
+            allergy_type='drug',
+            allergen__icontains=drug
+        )
         
-        if allergies.exists():
-            return Response({
-                'is_allergic': True,
-                'allergies': AllergySerializer(allergies, many=True).data,
-                'warning': f'⚠️ Warning: Recorded allergy to {drug_name}!'
-            })
-        return Response({'is_allergic': False})
+        return Response({
+            'has_allergy': allergies.exists(),
+            'allergies': AllergySerializer(allergies, many=True).data
+        })
 
 
 class ChronicConditionViewSet(viewsets.ModelViewSet):
@@ -767,110 +764,118 @@ class StockRequestViewSet(viewsets.ModelViewSet):
 # AI CHATBOT VIEWSET - Uses Gemini/OpenAI/Ollama
 # ============================================================================
 
-class ChatMessageViewSet(viewsets.ModelViewSet):
+class ChatView(APIView):
     """
-    AI-Powered Chatbot
+    AI Chatbot endpoint - OPTIMIZED for slow models like phi3:mini
     
-    Supports:
-    - Google Gemini (FREE) - Default
-    - OpenAI ChatGPT (Paid)
-    - Ollama (Local, Free)
-    
-    Set CHATBOT_PROVIDER and API keys in settings.py
+    POST /api/chat/
+    Body: {"message": "your question"}
     """
-    serializer_class = ChatMessageSerializer
     permission_classes = [IsAuthenticated]
     
-    _chatbot = None
-    
-    @classmethod
-    def get_chatbot(cls):
-        """Lazy load chatbot"""
-        if cls._chatbot is None:
-            try:
-                from .chatbot_ai_simple import get_chatbot_instance
-                cls._chatbot = get_chatbot_instance()
-                logger.info("AI Chatbot loaded successfully!")
-            except Exception as e:
-                logger.error(f"Failed to load chatbot: {e}")
-                cls._chatbot = None
-        return cls._chatbot
-    
-    def get_queryset(self):
-        return ChatMessage.objects.filter(user=self.request.user).order_by('-created_at')[:50]
-    
-    def create(self, request):
-        message = request.data.get('message', '').strip()
-        if not message:
-            return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request):
+        import threading
+        import time
         
         user = request.user
-        chatbot = self.get_chatbot()
+        message = request.data.get('message', '').strip()
         
-        if chatbot:
-            # Build context
-            context = self._build_context(user)
-            user_name = user.first_name or user.username
-            
-            # Generate AI response
-            response = chatbot.generate_response(
-                user_message=message,
-                user_id=user.id,
-                user_name=user_name,
-                context=context
+        if not message:
+            return Response(
+                {'error': 'Message is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
             )
+        
+        logger.info(f"Chat request from {user.username}: {message[:50]}...")
+        user_name = user.first_name or user.username
+        
+        # Result container for thread
+        result = {'response': None, 'error': None}
+        
+        def generate_in_thread():
+            try:
+                chatbot = get_chatbot_instance()
+                result['response'] = chatbot.generate_response(
+                    user_message=message,
+                    user_id=user.id,
+                    user_name=user_name,
+                    context=None
+                )
+            except Exception as e:
+                result['error'] = str(e)
+        
+        # Run in thread with timeout
+        thread = threading.Thread(target=generate_in_thread)
+        thread.start()
+        thread.join(timeout=30)  # Wait max 30 seconds
+        
+        if thread.is_alive():
+            # Thread still running - return fallback
+            logger.warning("Chat generation timed out")
+            response_text = self._get_fallback_response(message, user_name)
+        elif result['error']:
+            logger.error(f"Chat error: {result['error']}")
+            response_text = self._get_fallback_response(message, user_name)
         else:
-            # Fallback if chatbot not available
-            response = self._fallback_response(message, user)
+            response_text = result['response'] or self._get_fallback_response(message, user_name)
         
-        # Save to database
-        chat = ChatMessage.objects.create(
-            user=user,
-            message=message,
-            response=response
-        )
-        
-        return Response(ChatMessageSerializer(chat).data, status=status.HTTP_201_CREATED)
-    
-    def _build_context(self, user) -> dict:
-        """Build context from user data"""
-        context = {}
+        # Save to database (async)
         try:
-            orders = Order.objects.filter(customer=user).order_by('-created_at')[:3]
-            if orders:
-                context['recent_orders'] = [
-                    {'id': o.id, 'status': o.status, 'total': str(o.total_amount)}
-                    for o in orders
-                ]
-            
-            cart_count = Cart.objects.filter(customer=user).count()
-            if cart_count:
-                context['cart_items'] = cart_count
+            ChatMessage.objects.create(user=user, message=message, response=response_text)
         except:
             pass
-        return context
+        
+        return Response({
+            'response': response_text,
+            'user': user.username
+        })
     
-    def _fallback_response(self, message: str, user) -> str:
-        """Simple fallback when AI is not available"""
-        name = user.first_name or user.username
+    def _get_fallback_response(self, message: str, name: str) -> str:
+        """Quick fallback responses"""
         msg = message.lower()
         
         if any(w in msg for w in ['hello', 'hi', 'hey']):
-            return f"Hello {name}! 👋 I'm your PharmaCare assistant. How can I help you today?"
-        elif any(w in msg for w in ['order', 'track']):
-            return "📦 You can track your orders in the 'My Orders' section!"
-        elif any(w in msg for w in ['medicine', 'drug', 'headache', 'pain']):
-            return "💊 For medicine recommendations, please check our Products page or consult with a doctor through 'Ask Doctor' feature!"
-        elif any(w in msg for w in ['thank', 'thanks']):
-            return "You're welcome! 😊 Is there anything else I can help you with?"
-        else:
-            return f"Thanks for your message, {name}! I'm here to help with products, orders, and health advice. What would you like to know?"
+            return f"Hello {name}! 👋 How can I help you today?"
+        if any(w in msg for w in ['order', 'track']):
+            return f"📦 Check your orders in 'My Orders' section, {name}!"
+        if any(w in msg for w in ['medicine', 'drug', 'headache', 'pain', 'fever']):
+            return f"💊 Check our Products page for medicines. For serious symptoms, consult a doctor, {name}!"
+        if any(w in msg for w in ['thank', 'thanks']):
+            return f"You're welcome, {name}! 😊"
+        if any(w in msg for w in ['bye', 'goodbye']):
+            return f"Goodbye {name}! Take care! 👋"
+        
+        return f"I can help with medicines, orders, and health advice, {name}! 💊"
+
+
+class ChatHistoryView(APIView):
+    """
+    Get and clear chat history
     
-    @action(detail=False, methods=['post'])
-    def clear_history(self, request):
-        """Clear chat history"""
-        chatbot = self.get_chatbot()
-        if chatbot:
+    GET /api/chat/history/ - Get chat history
+    DELETE /api/chat/history/ - Clear chat history
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get user's chat history"""
+        messages = ChatMessage.objects.filter(user=request.user).order_by('-created_at')[:50]
+        return Response([
+            {
+                'id': m.id,
+                'message': m.message,
+                'response': m.response,
+                'created_at': m.created_at
+            }
+            for m in messages
+        ])
+    
+    def delete(self, request):
+        """Clear user's chat history"""
+        try:
+            chatbot = get_chatbot_instance()
             chatbot.clear_history(request.user.id)
+        except:
+            pass
         ChatMessage.objects.filter(user=request.user).delete()
         return Response({'message': 'History cleared'})

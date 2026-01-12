@@ -41,8 +41,8 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
 # Set AI Model
-os.environ['CHATBOT_PROVIDER'] = 'gemini'
-os.environ['GEMINI_API_KEY'] = 'AIzaSyBvufMoPs_qyUNU0YkV9RWHHXBcmfxRzmg'
+os.environ['OLLAMA_URL'] = 'http://localhost:11434'  # Default
+os.environ['OLLAMA_MODEL'] = 'tinyllama'
 # Application definition
 
 INSTALLED_APPS = [

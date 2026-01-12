@@ -304,7 +304,7 @@ const Products = () => {
                         {product.total_stock > 0 ? (
                           <span className="inline-flex items-center gap-2 text-green-600 text-sm font-medium">
                             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            In Stock ({product.total_stock})
+                            In Stock 
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-2 text-red-600 text-sm font-medium">
