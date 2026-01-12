@@ -333,13 +333,40 @@ const PatientMedicalRecords = () => {
                 {patientHistory?.allergies?.length > 0 && (
                   <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4">
                     <h3 className="font-bold text-red-800 flex items-center gap-2 mb-3">
-                      <FiAlertTriangle /> ⚠️ Patient Allergies
+                      <FiAlertTriangle /> ⚠️ Patient Allergies ({patientHistory.allergies.length})
                     </h3>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-3">
                       {patientHistory.allergies.map(allergy => (
-                        <span key={allergy.id} className={`px-3 py-1 rounded-full text-sm font-medium border ${getSeverityColor(allergy.severity)}`}>
-                          {allergy.allergen} ({allergy.severity_display || allergy.severity})
-                        </span>
+                        <div key={allergy.id} className={`p-3 rounded-xl border-2 ${getSeverityColor(allergy.severity)}`}>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <span className="font-bold text-gray-900">{allergy.allergen}</span>
+                              {allergy.allergy_type && (
+                                <span className="ml-2 text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
+                                  {allergy.allergy_type_display || allergy.allergy_type}
+                                </span>
+                              )}
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                              allergy.severity === 'severe' || allergy.severity === 'life_threatening' 
+                                ? 'bg-red-600 text-white' 
+                                : allergy.severity === 'moderate' 
+                                  ? 'bg-yellow-500 text-white' 
+                                  : 'bg-green-500 text-white'
+                            }`}>
+                              {allergy.severity_display || allergy.severity?.toUpperCase()}
+                            </span>
+                          </div>
+                          {/* Reaction Description - NOW SHOWN! */}
+                          {allergy.reaction && (
+                            <div className="mt-2 pt-2 border-t border-red-200">
+                              <p className="text-sm text-gray-700">
+                                <span className="font-semibold">📋 Reaction: </span>
+                                {allergy.reaction}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>

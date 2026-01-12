@@ -461,56 +461,48 @@ class PatientMedicalProfileViewSet(viewsets.ModelViewSet):
 
 
 class AllergyViewSet(viewsets.ModelViewSet):
-    """Patient Allergies"""
-    queryset = Allergy.objects.all()
+    """ViewSet for managing patient allergies"""
+    queryset = Allergy.objects.all()  # <-- ADD THIS LINE!
     serializer_class = AllergySerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
+        """Filter allergies based on user role"""
         user = self.request.user
-        if user.role == 'doctor' or user.role == 'admin':
+        # Start with base queryset
+        qs = Allergy.objects.all()
+        
+        # Filter based on role
+        if hasattr(user, 'role') and user.role in ['doctor', 'admin', 'pharmacist']:
             patient_id = self.request.query_params.get('patient')
             if patient_id:
-                return Allergy.objects.filter(patient_id=patient_id)
-            return Allergy.objects.all()
-        return Allergy.objects.filter(patient=user)
+                return qs.filter(patient_id=patient_id)
+            return qs
+        
+        # Regular users only see their own allergies
+        return qs.filter(patient=user)
     
     def perform_create(self, serializer):
-        if self.request.user.role == 'doctor':
-            patient_id = self.request.data.get('patient')
-            if patient_id:
-                serializer.save(patient_id=patient_id)
-                return
+        """Automatically set the patient to the current user"""
         serializer.save(patient=self.request.user)
     
     @action(detail=False, methods=['get'])
     def check_drug(self, request):
-        """Check if user is allergic to a specific drug"""
-        drug_name = request.query_params.get('drug', '').lower()
-        patient_id = request.query_params.get('patient')
+        """Check if user has allergy to a specific drug"""
+        drug = request.query_params.get('drug', '')
+        if not drug:
+            return Response({'error': 'Drug parameter required'}, status=400)
         
-        if patient_id and request.user.role in ['doctor', 'admin']:
-            allergies = Allergy.objects.filter(
-                patient_id=patient_id,
-                allergy_type='drug',
-                is_active=True,
-                allergen__icontains=drug_name
-            )
-        else:
-            allergies = Allergy.objects.filter(
-                patient=request.user,
-                allergy_type='drug',
-                is_active=True,
-                allergen__icontains=drug_name
-            )
+        allergies = Allergy.objects.filter(
+            patient=request.user,
+            allergy_type='drug',
+            allergen__icontains=drug
+        )
         
-        if allergies.exists():
-            return Response({
-                'is_allergic': True,
-                'allergies': AllergySerializer(allergies, many=True).data,
-                'warning': f'⚠️ Warning: Recorded allergy to {drug_name}!'
-            })
-        return Response({'is_allergic': False})
+        return Response({
+            'has_allergy': allergies.exists(),
+            'allergies': AllergySerializer(allergies, many=True).data
+        })
 
 
 class ChronicConditionViewSet(viewsets.ModelViewSet):
