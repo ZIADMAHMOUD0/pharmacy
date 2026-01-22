@@ -109,6 +109,9 @@ export const authAPI = {
   signup: (data) => api.post('/users/', data),
   changePassword: (data) => api.post('/users/change_password/', data),
   refreshToken: (refresh) => api.post('/token/refresh/', { refresh }),
+  getMyStats: () => api.get('/users/my_stats/'),
+  getMe: () => api.get('/users/me/'),
+  updateProfile: (data) => api.patch('/users/me/', data),
 };
 
 export const userAPI = {
@@ -191,6 +194,7 @@ export const currentMedicationAPI = {
   create: (data) => api.post('/current-medications/', data),
   update: (id, data) => api.patch(`/current-medications/${id}/`, data),
   delete: (id) => api.delete(`/current-medications/${id}/`),
+  checkAllergy: (medicationName) => api.get(`/current-medications/check_allergy/?medication_name=${encodeURIComponent(medicationName)}`),
 };
 
 export const medicalNoteAPI = {
@@ -216,6 +220,8 @@ export const cartAPI = {
   addToCart: (data) => api.post('/cart/', data),
   updateCart: (id, data) => api.patch(`/cart/${id}/`, data),
   removeFromCart: (id) => api.delete(`/cart/${id}/`),
+  updateQuantity: (id, data) => api.patch(`/cart/${id}/`, data),
+  checkAllergy: (productId) => api.get(`/cart/check_allergy/?product_id=${productId}`),
 };
 
 export const orderAPI = {
@@ -234,9 +240,23 @@ export const orderAPI = {
 
 export const questionAPI = {
   getAll: () => api.get('/questions/'),
-  create: (data) => api.post('/questions/', data),
+  create: (data) => {
+    if (data instanceof FormData) {
+      return api.post('/questions/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.post('/questions/', data);
+  },
   answer: (id, data) => api.post(`/questions/${id}/answer/`, data),
-  update: (id, data) => api.patch(`/questions/${id}/`, data),
+  update: (id, data) => {
+    if (data instanceof FormData) {
+      return api.patch(`/questions/${id}/`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+    return api.patch(`/questions/${id}/`, data);
+  },
   delete: (id) => api.delete(`/questions/${id}/`),
 };
 

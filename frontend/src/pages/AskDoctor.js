@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { questionAPI } from '../services/api';
-import { FiSend, FiEdit2, FiTrash2, FiMessageCircle, FiClock, FiCheckCircle, FiX, FiHelpCircle, FiUser } from 'react-icons/fi';
+import { FiSend, FiEdit2, FiTrash2, FiMessageCircle, FiClock, FiCheckCircle, FiX, FiHelpCircle, FiUser, FiImage, FiCamera } from 'react-icons/fi';
 import ConfirmModal from '../components/ConfirmModal';
 import ToastContainer from '../components/ToastContainer';
 import { useToast } from '../hooks/useToast';
@@ -11,10 +11,22 @@ const AskDoctor = () => {
   const [newQuestion, setNewQuestion] = useState({ title: '', question_text: '' });
   const [submitting, setSubmitting] = useState(false);
   
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+  
+  // Image viewer modal
+  const [viewingImage, setViewingImage] = useState(null);
+  
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', question_text: '' });
+  const [editImage, setEditImage] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const editFileInputRef = useRef(null);
   
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
@@ -38,6 +50,39 @@ const AskDoctor = () => {
     }
   };
 
+  // Handle image selection
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please select a valid image (JPEG, PNG, or WebP)');
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newQuestion.title.trim() || !newQuestion.question_text.trim()) {
@@ -47,14 +92,59 @@ const AskDoctor = () => {
     
     try {
       setSubmitting(true);
-      await questionAPI.create(newQuestion);
+      
+      // Use FormData if there's an image
+      if (selectedImage) {
+        const formData = new FormData();
+        formData.append('title', newQuestion.title);
+        formData.append('question_text', newQuestion.question_text);
+        formData.append('image', selectedImage);
+        await questionAPI.create(formData);
+      } else {
+        await questionAPI.create(newQuestion);
+      }
+      
       setNewQuestion({ title: '', question_text: '' });
+      removeImage();
       fetchQuestions();
       toast.success('Question submitted successfully! A doctor will answer soon.');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error submitting question');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Handle edit image selection
+  const handleEditImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please select a valid image (JPEG, PNG, or WebP)');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      
+      setEditImage(file);
+      setRemoveExistingImage(false);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeEditImage = () => {
+    setEditImage(null);
+    setEditImagePreview(null);
+    setRemoveExistingImage(true);
+    if (editFileInputRef.current) {
+      editFileInputRef.current.value = '';
     }
   };
 
@@ -66,6 +156,9 @@ const AskDoctor = () => {
     }
     setEditingQuestion(question);
     setEditForm({ title: question.title, question_text: question.question_text });
+    setEditImage(null);
+    setEditImagePreview(question.image_url || null);
+    setRemoveExistingImage(false);
     setShowEditModal(true);
   };
 
@@ -79,10 +172,28 @@ const AskDoctor = () => {
     
     try {
       setActionLoading(true);
-      await questionAPI.update(editingQuestion.id, editForm);
+      
+      // Use FormData if there's a new image or removing existing image
+      if (editImage || removeExistingImage) {
+        const formData = new FormData();
+        formData.append('title', editForm.title);
+        formData.append('question_text', editForm.question_text);
+        if (editImage) {
+          formData.append('image', editImage);
+        } else if (removeExistingImage) {
+          formData.append('image', ''); // Send empty to remove
+        }
+        await questionAPI.update(editingQuestion.id, formData);
+      } else {
+        await questionAPI.update(editingQuestion.id, editForm);
+      }
+      
       toast.success('Question updated successfully!');
       setShowEditModal(false);
       setEditingQuestion(null);
+      setEditImage(null);
+      setEditImagePreview(null);
+      setRemoveExistingImage(false);
       fetchQuestions();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error updating question');
@@ -197,6 +308,51 @@ const AskDoctor = () => {
                 required
               />
             </div>
+            
+            {/* Image Upload Section */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Attach Image (Optional)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                📷 You can attach a prescription, photo of symptoms, or any relevant image
+              </p>
+              
+              {imagePreview ? (
+                <div className="relative inline-block">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="max-h-40 rounded-xl border border-gray-200 shadow-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 shadow-lg"
+                  >
+                    <FiX size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/50 transition-all"
+                >
+                  <FiCamera className="mx-auto text-gray-400 mb-2" size={32} />
+                  <p className="text-gray-500 text-sm">Click to upload an image</p>
+                  <p className="text-gray-400 text-xs mt-1">JPEG, PNG, WebP (max 5MB)</p>
+                </div>
+              )}
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/jpg,image/webp"
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+            </div>
+            
             <button 
               type="submit" 
               disabled={submitting}
@@ -254,6 +410,22 @@ const AskDoctor = () => {
                         )}
                       </div>
                       <p className="text-gray-600 mb-3">{q.question_text}</p>
+                      
+                      {/* Display attached image */}
+                      {q.image_url && (
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                            <FiImage size={14} /> Attached Image:
+                          </p>
+                          <img 
+                            src={q.image_url} 
+                            alt="Attached" 
+                            className="max-h-48 rounded-xl border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setViewingImage(q.image_url)}
+                          />
+                        </div>
+                      )}
+                      
                       <p className="text-sm text-gray-400 flex items-center gap-1">
                         <FiClock size={14} /> Asked on {new Date(q.created_at).toLocaleDateString()}
                       </p>
@@ -264,7 +436,7 @@ const AskDoctor = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => openEditModal(q)}
-                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-all"
+                          className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-all"
                           title="Edit Question"
                         >
                           <FiEdit2 size={18} />
@@ -308,12 +480,12 @@ const AskDoctor = () => {
 
       {/* Edit Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl animate-scale-in">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl animate-scale-in my-8">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">Edit Question</h2>
               <button 
-                onClick={() => { setShowEditModal(false); setEditingQuestion(null); }} 
+                onClick={() => { setShowEditModal(false); setEditingQuestion(null); setEditImage(null); setEditImagePreview(null); }} 
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
                 <FiX size={20} />
@@ -341,10 +513,63 @@ const AskDoctor = () => {
                   required
                 />
               </div>
+              
+              {/* Edit Image Section */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Attached Image
+                </label>
+                
+                {editImagePreview && !removeExistingImage ? (
+                  <div className="relative inline-block">
+                    <img 
+                      src={editImagePreview} 
+                      alt="Preview" 
+                      className="max-h-40 rounded-xl border border-gray-200 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeEditImage}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 shadow-lg"
+                      title="Remove image"
+                    >
+                      <FiX size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div 
+                    onClick={() => editFileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/50 transition-all"
+                  >
+                    <FiCamera className="mx-auto text-gray-400 mb-2" size={24} />
+                    <p className="text-gray-500 text-sm">Click to upload an image</p>
+                    <p className="text-gray-400 text-xs mt-1">JPEG, PNG, WebP (max 5MB)</p>
+                  </div>
+                )}
+                
+                <input
+                  ref={editFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg,image/webp"
+                  onChange={handleEditImageSelect}
+                  className="hidden"
+                />
+                
+                {editImagePreview && !removeExistingImage && (
+                  <button
+                    type="button"
+                    onClick={() => editFileInputRef.current?.click()}
+                    className="mt-2 text-sm text-teal-600 hover:text-teal-700 flex items-center gap-1"
+                  >
+                    <FiCamera size={14} /> Change image
+                  </button>
+                )}
+              </div>
+              
               <div className="flex gap-3 pt-4">
                 <button 
                   type="button" 
-                  onClick={() => { setShowEditModal(false); setEditingQuestion(null); }} 
+                  onClick={() => { setShowEditModal(false); setEditingQuestion(null); setEditImage(null); setEditImagePreview(null); }} 
                   className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200"
                 >
                   Cancel
@@ -359,6 +584,27 @@ const AskDoctor = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Image Viewer Modal */}
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <button 
+            className="absolute top-4 right-4 text-white hover:text-gray-300 p-2"
+            onClick={() => setViewingImage(null)}
+          >
+            <FiX size={32} />
+          </button>
+          <img 
+            src={viewingImage} 
+            alt="Full size" 
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

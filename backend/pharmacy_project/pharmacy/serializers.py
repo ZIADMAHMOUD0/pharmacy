@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import *
+from rest_framework.views import APIView
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -43,7 +44,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'name', 'description', 'price', 'category', 'category_name',
-            'manufacturer', 'requires_prescription', 'low_stock_threshold',
+            'manufacturer', 'active_ingredient', 'requires_prescription', 'low_stock_threshold',
             'total_stock', 'is_low_stock', 'batches', 'image', 'image_url',
             'created_at', 'updated_at'
         ]
@@ -251,10 +252,19 @@ class CartSerializer(serializers.ModelSerializer):
 class QuestionSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.username', read_only=True)
     answered_by_name = serializers.CharField(source='answered_by.username', read_only=True)
+    image_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Question
         fields = '__all__'
+    
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
 
 
 class PatientRecordSerializer(serializers.ModelSerializer):

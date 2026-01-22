@@ -42,6 +42,7 @@ const MedicalHistory = () => {
   
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   const [actionLoading, setActionLoading] = useState(false);
+  const [medicationAllergyWarning, setMedicationAllergyWarning] = useState({ show: false, matchingAllergies: [] });
   const toast = useToast();
 
   useEffect(() => { fetchProfile(); }, []);
@@ -160,8 +161,26 @@ const MedicalHistory = () => {
   };
 
   // Medication handlers
-  const handleSaveMedication = async (e) => {
+  const handleSaveMedication = async (e, forceAdd = false) => {
     e.preventDefault();
+    
+    if (!forceAdd && !editingMedication && medicationForm.medication_name.trim()) {
+      try {
+        const response = await currentMedicationAPI.checkAllergy(medicationForm.medication_name);
+        if (response.data.has_allergy) {
+          setMedicationAllergyWarning({
+            show: true,
+            matchingAllergies: response.data.matching_allergies,
+            matchedBy: response.data.matched_by,
+            foundActiveIngredients: response.data.found_active_ingredients || []
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking allergy:', error);
+      }
+    }
+    
     try {
       if (editingMedication) {
         await currentMedicationAPI.update(editingMedication.id, medicationForm);
@@ -177,6 +196,12 @@ const MedicalHistory = () => {
     } catch (error) {
       toast.error('Error saving medication');
     }
+  };
+
+  const handleConfirmMedicationWithAllergy = async () => {
+    setMedicationAllergyWarning({ show: false, matchingAllergies: [], matchedBy: [], foundActiveIngredients: [] });
+    const syntheticEvent = { preventDefault: () => {} };
+    await handleSaveMedication(syntheticEvent, true);
   };
 
   const handleDeleteMedication = (med) => {
@@ -201,77 +226,167 @@ const MedicalHistory = () => {
 
   const getSeverityColor = (severity) => {
     const colors = {
-      mild: 'bg-green-100 text-green-700',
-      moderate: 'bg-yellow-100 text-yellow-700',
-      severe: 'bg-orange-100 text-orange-700',
-      life_threatening: 'bg-red-100 text-red-700'
+      mild: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      moderate: 'bg-amber-100 text-amber-700 border-amber-200',
+      severe: 'bg-orange-100 text-orange-700 border-orange-200',
+      life_threatening: 'bg-rose-100 text-rose-700 border-rose-200'
     };
-    return colors[severity] || 'bg-gray-100 text-gray-700';
+    return colors[severity] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Loading your medical history...</p>
+        </div>
       </div>
     );
   }
 
+  const tabs = [
+    { key: 'overview', label: 'Overview', icon: FiUser, color: 'teal' },
+    { key: 'allergies', label: 'Allergies', icon: FiAlertTriangle, color: 'rose' },
+    { key: 'conditions', label: 'Conditions', icon: FiActivity, color: 'amber' },
+    { key: 'medications', label: 'Medications', icon: FiPackage, color: 'emerald' },
+    { key: 'notes', label: 'Doctor Notes', icon: FiFileText, color: 'violet' }
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal isOpen={confirmModal.isOpen} onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })} onConfirm={confirmModal.onConfirm} title={confirmModal.title} message={confirmModal.message} type={confirmModal.type} confirmText={confirmModal.confirmText} loading={actionLoading} />
 
+      {/* Medication Allergy Warning Modal */}
+      {medicationAllergyWarning.show && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto animate-scale-in border border-slate-100">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                <FiAlertTriangle className="text-rose-600" size={28} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-display font-bold text-rose-600">Allergy Warning!</h2>
+                <p className="text-slate-500 text-sm">This medication matches your allergies</p>
+              </div>
+            </div>
+            
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 mb-6">
+              <p className="text-slate-700 mb-4">
+                You are trying to add <strong className="text-slate-800">"{medicationForm.medication_name}"</strong> to your current medications, but it matches your recorded allergies:
+              </p>
+              
+              {medicationAllergyWarning.foundActiveIngredients?.length > 0 && (
+                <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-4">
+                  <p className="text-teal-700 text-sm font-medium mb-1">💊 Active Ingredient(s) found:</p>
+                  <p className="text-teal-800 font-semibold">{medicationAllergyWarning.foundActiveIngredients.join(', ')}</p>
+                </div>
+              )}
+              
+              <div className="space-y-3">
+                {medicationAllergyWarning.matchingAllergies.map((allergy, idx) => {
+                  const matchInfo = medicationAllergyWarning.matchedBy?.find(m => m.allergen === allergy.allergen);
+                  return (
+                    <div key={idx} className={`p-4 rounded-xl border ${getSeverityColor(allergy.severity)}`}>
+                      <div className="flex justify-between items-start">
+                        <span className="font-semibold">{allergy.allergen}</span>
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-white/50">
+                          {allergy.severity_display || allergy.severity}
+                        </span>
+                      </div>
+                      {matchInfo && (
+                        <p className="text-xs mt-2 opacity-70">
+                          Matched by: {matchInfo.match_type?.includes('active_ingredient') ? '💊 Active Ingredient' : ''} 
+                          {matchInfo.match_type?.includes('medication_name') ? (matchInfo.match_type?.includes('active_ingredient') ? ' & ' : '') + '📝 Medication Name' : ''}
+                        </p>
+                      )}
+                      {allergy.reaction && <p className="text-sm mt-2 opacity-80">Reaction: {allergy.reaction}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <p className="text-slate-500 text-sm mb-6 flex items-start gap-2">
+              <span className="text-lg">⚠️</span>
+              Adding this medication despite your allergy could be dangerous. Please consult with a healthcare professional.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setMedicationAllergyWarning({ show: false, matchingAllergies: [], matchedBy: [], foundActiveIngredients: [] })}
+                className="flex-1 py-3.5 bg-slate-100 rounded-xl font-semibold hover:bg-slate-200 transition-colors text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmMedicationWithAllergy}
+                className="flex-1 py-3.5 bg-gradient-to-r from-rose-500 to-red-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-rose-500/30 transition-all flex items-center justify-center gap-2"
+              >
+                <FiPackage size={18} />
+                Add Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
-      <section className="relative py-12 overflow-hidden" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-        <div className="absolute inset-0 bg-black/20"></div>
+      <section className="relative py-12 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-600 via-cyan-600 to-teal-700"></div>
+        <div className="absolute inset-0 pattern-pharmacy opacity-10"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-400/10 rounded-full blur-3xl"></div>
+        
         <div className="relative z-10 container mx-auto px-6">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-            <FiHeart className="text-pink-300" /> My Medical History
-          </h1>
-          <p className="text-white/70">Manage your health information, allergies, and medications</p>
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+              <FiHeart className="text-white" size={32} />
+            </div>
+            <div>
+              <h1 className="text-4xl font-display font-bold text-white">My Medical History</h1>
+              <p className="text-white/60">Manage your health information, allergies, and medications</p>
+            </div>
+          </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-white">
-              <FiDroplet className="mb-2" size={24} />
-              <p className="text-white/70 text-sm">Blood Type</p>
-              <p className="text-2xl font-bold">{profile?.blood_type || 'Not Set'}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
+              <FiDroplet className="mb-3 text-white/80" size={24} />
+              <p className="text-white/60 text-sm font-medium">Blood Type</p>
+              <p className="text-3xl font-display font-bold text-white">{profile?.blood_type || '—'}</p>
             </div>
-            <div className="bg-red-500/20 backdrop-blur-sm rounded-xl p-4 text-white">
-              <FiAlertTriangle className="mb-2" size={24} />
-              <p className="text-red-200 text-sm">Allergies</p>
-              <p className="text-2xl font-bold">{profile?.allergies?.length || 0}</p>
+            <div className="bg-rose-600/30 backdrop-blur-sm rounded-2xl p-5 border border-rose-400/20">
+              <FiAlertTriangle className="mb-3 text-rose-200" size={24} />
+              <p className="text-rose-200/80 text-sm font-medium">Allergies</p>
+              <p className="text-3xl font-display font-bold text-white">{profile?.allergies?.length || 0}</p>
             </div>
-            <div className="bg-yellow-500/20 backdrop-blur-sm rounded-xl p-4 text-white">
-              <FiActivity className="mb-2" size={24} />
-              <p className="text-yellow-200 text-sm">Conditions</p>
-              <p className="text-2xl font-bold">{profile?.chronic_conditions?.length || 0}</p>
+            <div className="bg-amber-500/20 backdrop-blur-sm rounded-2xl p-5 border border-amber-400/20">
+              <FiActivity className="mb-3 text-amber-200" size={24} />
+              <p className="text-amber-200/80 text-sm font-medium">Conditions</p>
+              <p className="text-3xl font-display font-bold text-white">{profile?.chronic_conditions?.length || 0}</p>
             </div>
-            <div className="bg-green-500/20 backdrop-blur-sm rounded-xl p-4 text-white">
-              <FiPackage className="mb-2" size={24} />
-              <p className="text-green-200 text-sm">Medications</p>
-              <p className="text-2xl font-bold">{profile?.current_medications?.length || 0}</p>
+            <div className="bg-emerald-500/20 backdrop-blur-sm rounded-2xl p-5 border border-emerald-400/20">
+              <FiPackage className="mb-3 text-emerald-200" size={24} />
+              <p className="text-emerald-200/80 text-sm font-medium">Medications</p>
+              <p className="text-3xl font-display font-bold text-white">{profile?.current_medications?.length || 0}</p>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-10">
         {/* Tabs */}
-        <div className="bg-white rounded-2xl shadow-lg p-2 mb-6 flex gap-2 flex-wrap">
-          {[
-            { key: 'overview', label: 'Overview', icon: FiUser },
-            { key: 'allergies', label: 'Allergies', icon: FiAlertTriangle },
-            { key: 'conditions', label: 'Conditions', icon: FiActivity },
-            { key: 'medications', label: 'Medications', icon: FiPackage },
-            { key: 'notes', label: 'Doctor Notes', icon: FiFileText }
-          ].map(tab => (
+        <div className="bg-white rounded-2xl shadow-soft p-2 mb-8 flex gap-2 flex-wrap border border-slate-100">
+          {tabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
-                activeTab === tab.key ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all ${
+                activeTab === tab.key 
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg shadow-teal-500/30' 
+                  : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
               <tab.icon size={18} /> {tab.label}
@@ -281,46 +396,19 @@ const MedicalHistory = () => {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">Personal Information</h2>
-              <button onClick={() => setShowProfileModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex items-center gap-2">
-                <FiEdit2 /> Edit Profile
+          <div className="bg-white rounded-2xl shadow-soft p-8 border border-slate-100 animate-fade-in">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-display font-bold text-slate-800">Personal Information</h2>
+              <button onClick={() => setShowProfileModal(true)} className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-medium hover:shadow-glow transition-all flex items-center gap-2">
+                <FiEdit2 size={18} /> Edit Profile
               </button>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                <FiDroplet className="text-red-500" size={24} />
-                <div>
-                  <p className="text-sm text-gray-500">Blood Type</p>
-                  <p className="font-semibold text-gray-800">{profile?.blood_type || 'Not Set'}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                <FiCalendar className="text-blue-500" size={24} />
-                <div>
-                  <p className="text-sm text-gray-500">Date of Birth</p>
-                  <p className="font-semibold text-gray-800">{profile?.date_of_birth || 'Not Set'}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                <FiThermometer className="text-green-500" size={24} />
-                <div>
-                  <p className="text-sm text-gray-500">Weight / Height</p>
-                  <p className="font-semibold text-gray-800">
-                    {profile?.weight ? `${profile.weight} kg` : '-'} / {profile?.height ? `${profile.height} cm` : '-'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl md:col-span-2 lg:col-span-3">
-                <FiPhone className="text-purple-500" size={24} />
-                <div>
-                  <p className="text-sm text-gray-500">Emergency Contact</p>
-                  <p className="font-semibold text-gray-800">
-                    {profile?.emergency_contact_name || 'Not Set'} 
-                    {profile?.emergency_contact_phone && ` - ${profile.emergency_contact_phone}`}
-                  </p>
-                </div>
+              <InfoCard icon={<FiDroplet className="text-rose-500" />} label="Blood Type" value={profile?.blood_type || 'Not Set'} />
+              <InfoCard icon={<FiCalendar className="text-teal-500" />} label="Date of Birth" value={profile?.date_of_birth || 'Not Set'} />
+              <InfoCard icon={<FiThermometer className="text-emerald-500" />} label="Weight / Height" value={`${profile?.weight ? `${profile.weight} kg` : '—'} / ${profile?.height ? `${profile.height} cm` : '—'}`} />
+              <div className="md:col-span-2 lg:col-span-3">
+                <InfoCard icon={<FiPhone className="text-violet-500" />} label="Emergency Contact" value={`${profile?.emergency_contact_name || 'Not Set'}${profile?.emergency_contact_phone ? ` • ${profile.emergency_contact_phone}` : ''}`} />
               </div>
             </div>
           </div>
@@ -328,43 +416,49 @@ const MedicalHistory = () => {
 
         {/* Allergies Tab */}
         {activeTab === 'allergies' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <FiAlertTriangle className="text-red-500" /> My Allergies
+          <div className="bg-white rounded-2xl shadow-soft p-8 border border-slate-100 animate-fade-in">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3">
+                <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center">
+                  <FiAlertTriangle className="text-rose-600" size={20} />
+                </div>
+                My Allergies
               </h2>
-              <button onClick={() => { setEditingAllergy(null); setAllergyForm({ allergy_type: 'drug', allergen: '', severity: 'moderate', reaction: '', diagnosed_date: '' }); setShowAllergyModal(true); }} className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 flex items-center gap-2">
-                <FiPlusCircle /> Add Allergy
+              <button onClick={() => { setEditingAllergy(null); setAllergyForm({ allergy_type: 'drug', allergen: '', severity: 'moderate', reaction: '', diagnosed_date: '' }); setShowAllergyModal(true); }} className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-red-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-rose-500/30 transition-all flex items-center gap-2">
+                <FiPlusCircle size={18} /> Add Allergy
               </button>
             </div>
             
             {profile?.allergies?.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <FiShield className="mx-auto mb-4 text-gray-300" size={48} />
-                <p>No allergies recorded</p>
+              <div className="text-center py-16">
+                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <FiShield className="text-slate-400" size={40} />
+                </div>
+                <p className="text-slate-500 font-medium">No allergies recorded</p>
+                <p className="text-slate-400 text-sm">Add your allergies to help us keep you safe</p>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
-                {profile?.allergies?.map(allergy => (
-                  <div key={allergy.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
+                {profile?.allergies?.map((allergy, index) => (
+                  <div key={allergy.id} className="border border-slate-200 rounded-2xl p-5 hover:shadow-soft-xl hover:border-rose-200 transition-all animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-bold text-lg text-gray-800">{allergy.allergen}</h3>
-                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mt-1 ${getSeverityColor(allergy.severity)}`}>
+                        <h3 className="font-display font-bold text-lg text-slate-800">{allergy.allergen}</h3>
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 border ${getSeverityColor(allergy.severity)}`}>
                           {allergy.severity_display}
                         </span>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => { setEditingAllergy(allergy); setAllergyForm(allergy); setShowAllergyModal(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg">
+                      <div className="flex gap-1">
+                        <button onClick={() => { setEditingAllergy(allergy); setAllergyForm(allergy); setShowAllergyModal(true); }} className="p-2.5 text-teal-600 hover:bg-teal-50 rounded-xl transition-colors">
                           <FiEdit2 size={16} />
                         </button>
-                        <button onClick={() => handleDeleteAllergy(allergy)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg">
+                        <button onClick={() => handleDeleteAllergy(allergy)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
                           <FiTrash2 size={16} />
                         </button>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">Type: {allergy.allergy_type_display}</p>
-                    {allergy.reaction && <p className="text-sm text-gray-600 mt-1">Reaction: {allergy.reaction}</p>}
+                    <p className="text-sm text-slate-500 mt-3">Type: {allergy.allergy_type_display}</p>
+                    {allergy.reaction && <p className="text-sm text-slate-600 mt-1">Reaction: {allergy.reaction}</p>}
                   </div>
                 ))}
               </div>
@@ -374,46 +468,51 @@ const MedicalHistory = () => {
 
         {/* Conditions Tab */}
         {activeTab === 'conditions' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <FiActivity className="text-yellow-500" /> Chronic Conditions
+          <div className="bg-white rounded-2xl shadow-soft p-8 border border-slate-100 animate-fade-in">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+                  <FiActivity className="text-amber-600" size={20} />
+                </div>
+                Chronic Conditions
               </h2>
-              <button onClick={() => { setEditingCondition(null); setConditionForm({ condition_name: '', diagnosis_date: '', status: 'active', notes: '' }); setShowConditionModal(true); }} className="px-4 py-2 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 flex items-center gap-2">
-                <FiPlusCircle /> Add Condition
+              <button onClick={() => { setEditingCondition(null); setConditionForm({ condition_name: '', diagnosis_date: '', status: 'active', notes: '' }); setShowConditionModal(true); }} className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-amber-500/30 transition-all flex items-center gap-2">
+                <FiPlusCircle size={18} /> Add Condition
               </button>
             </div>
             
             {profile?.chronic_conditions?.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <FiActivity className="mx-auto mb-4 text-gray-300" size={48} />
-                <p>No chronic conditions recorded</p>
+              <div className="text-center py-16">
+                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <FiActivity className="text-slate-400" size={40} />
+                </div>
+                <p className="text-slate-500 font-medium">No chronic conditions recorded</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {profile?.chronic_conditions?.map(condition => (
-                  <div key={condition.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
+                {profile?.chronic_conditions?.map((condition, index) => (
+                  <div key={condition.id} className="border border-slate-200 rounded-2xl p-5 hover:shadow-soft-xl hover:border-amber-200 transition-all animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-bold text-lg text-gray-800">{condition.condition_name}</h3>
-                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mt-1 ${
-                          condition.status === 'active' ? 'bg-red-100 text-red-700' :
-                          condition.status === 'managed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                        <h3 className="font-display font-bold text-lg text-slate-800">{condition.condition_name}</h3>
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 border ${
+                          condition.status === 'active' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                          condition.status === 'managed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'
                         }`}>
                           {condition.status_display}
                         </span>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => { setEditingCondition(condition); setConditionForm(condition); setShowConditionModal(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg">
+                      <div className="flex gap-1">
+                        <button onClick={() => { setEditingCondition(condition); setConditionForm(condition); setShowConditionModal(true); }} className="p-2.5 text-teal-600 hover:bg-teal-50 rounded-xl transition-colors">
                           <FiEdit2 size={16} />
                         </button>
-                        <button onClick={() => handleDeleteCondition(condition)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg">
+                        <button onClick={() => handleDeleteCondition(condition)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
                           <FiTrash2 size={16} />
                         </button>
                       </div>
                     </div>
-                    {condition.diagnosis_date && <p className="text-sm text-gray-500 mt-2">Diagnosed: {condition.diagnosis_date}</p>}
-                    {condition.notes && <p className="text-sm text-gray-600 mt-1">{condition.notes}</p>}
+                    {condition.diagnosis_date && <p className="text-sm text-slate-500 mt-3">Diagnosed: {condition.diagnosis_date}</p>}
+                    {condition.notes && <p className="text-sm text-slate-600 mt-1">{condition.notes}</p>}
                   </div>
                 ))}
               </div>
@@ -423,41 +522,46 @@ const MedicalHistory = () => {
 
         {/* Medications Tab */}
         {activeTab === 'medications' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <FiPackage className="text-green-500" /> Current Medications
+          <div className="bg-white rounded-2xl shadow-soft p-8 border border-slate-100 animate-fade-in">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                  <FiPackage className="text-emerald-600" size={20} />
+                </div>
+                Current Medications
               </h2>
-              <button onClick={() => { setEditingMedication(null); setMedicationForm({ medication_name: '', dosage: '', frequency: 'once_daily', start_date: '', reason: '' }); setShowMedicationModal(true); }} className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 flex items-center gap-2">
-                <FiPlusCircle /> Add Medication
+              <button onClick={() => { setEditingMedication(null); setMedicationForm({ medication_name: '', dosage: '', frequency: 'once_daily', start_date: '', reason: '' }); setShowMedicationModal(true); }} className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium hover:shadow-lg hover:shadow-emerald-500/30 transition-all flex items-center gap-2">
+                <FiPlusCircle size={18} /> Add Medication
               </button>
             </div>
             
             {profile?.current_medications?.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <FiPackage className="mx-auto mb-4 text-gray-300" size={48} />
-                <p>No current medications recorded</p>
+              <div className="text-center py-16">
+                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <FiPackage className="text-slate-400" size={40} />
+                </div>
+                <p className="text-slate-500 font-medium">No current medications recorded</p>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
-                {profile?.current_medications?.map(med => (
-                  <div key={med.id} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
+                {profile?.current_medications?.map((med, index) => (
+                  <div key={med.id} className="border border-slate-200 rounded-2xl p-5 hover:shadow-soft-xl hover:border-emerald-200 transition-all animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-bold text-lg text-gray-800">{med.medication_name}</h3>
-                        <p className="text-blue-600 font-medium">{med.dosage}</p>
+                        <h3 className="font-display font-bold text-lg text-slate-800">{med.medication_name}</h3>
+                        <p className="text-teal-600 font-semibold mt-1">{med.dosage}</p>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => { setEditingMedication(med); setMedicationForm(med); setShowMedicationModal(true); }} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg">
+                      <div className="flex gap-1">
+                        <button onClick={() => { setEditingMedication(med); setMedicationForm(med); setShowMedicationModal(true); }} className="p-2.5 text-teal-600 hover:bg-teal-50 rounded-xl transition-colors">
                           <FiEdit2 size={16} />
                         </button>
-                        <button onClick={() => handleDeleteMedication(med)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg">
+                        <button onClick={() => handleDeleteMedication(med)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
                           <FiTrash2 size={16} />
                         </button>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-2">Frequency: {med.frequency_display}</p>
-                    {med.reason && <p className="text-sm text-gray-600 mt-1">For: {med.reason}</p>}
+                    <p className="text-sm text-slate-500 mt-3">Frequency: {med.frequency_display}</p>
+                    {med.reason && <p className="text-sm text-slate-600 mt-1">For: {med.reason}</p>}
                   </div>
                 ))}
               </div>
@@ -467,28 +571,34 @@ const MedicalHistory = () => {
 
         {/* Doctor Notes Tab */}
         {activeTab === 'notes' && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-6">
-              <FiFileText className="text-purple-500" /> Doctor Notes
+          <div className="bg-white rounded-2xl shadow-soft p-8 border border-slate-100 animate-fade-in">
+            <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
+                <FiFileText className="text-violet-600" size={20} />
+              </div>
+              Doctor Notes
             </h2>
             
             {profile?.medical_notes?.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <FiFileText className="mx-auto mb-4 text-gray-300" size={48} />
-                <p>No medical notes yet</p>
+              <div className="text-center py-16">
+                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <FiFileText className="text-slate-400" size={40} />
+                </div>
+                <p className="text-slate-500 font-medium">No medical notes yet</p>
+                <p className="text-slate-400 text-sm">Your doctors' notes will appear here</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {profile?.medical_notes?.map(note => (
-                  <div key={note.id} className="border border-gray-200 rounded-xl p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-gray-800">{note.title}</h3>
-                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                {profile?.medical_notes?.map((note, index) => (
+                  <div key={note.id} className="border border-slate-200 rounded-2xl p-5 hover:border-violet-200 transition-all animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="font-display font-bold text-slate-800">{note.title}</h3>
+                      <span className="text-xs bg-violet-100 text-violet-700 px-3 py-1 rounded-full font-semibold">
                         {note.note_type_display}
                       </span>
                     </div>
-                    <p className="text-gray-600 mb-2">{note.content}</p>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-slate-600 mb-3">{note.content}</p>
+                    <p className="text-sm text-slate-400">
                       By Dr. {note.doctor_name} • {new Date(note.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -501,177 +611,176 @@ const MedicalHistory = () => {
 
       {/* Profile Modal */}
       {showProfileModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Edit Profile</h2>
-              <button onClick={() => setShowProfileModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX /></button>
+        <Modal title="Edit Profile" onClose={() => setShowProfileModal(false)}>
+          <form onSubmit={handleUpdateProfile} className="space-y-5">
+            <FormField label="Blood Type">
+              <select className="w-full p-4 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={profileForm.blood_type} onChange={(e) => setProfileForm({...profileForm, blood_type: e.target.value})}>
+                <option value="">Select...</option>
+                {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Date of Birth">
+              <input type="date" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={profileForm.date_of_birth} onChange={(e) => setProfileForm({...profileForm, date_of_birth: e.target.value})} />
+            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Weight (kg)">
+                <input type="number" step="0.1" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={profileForm.weight} onChange={(e) => setProfileForm({...profileForm, weight: e.target.value})} />
+              </FormField>
+              <FormField label="Height (cm)">
+                <input type="number" step="0.1" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={profileForm.height} onChange={(e) => setProfileForm({...profileForm, height: e.target.value})} />
+              </FormField>
             </div>
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Blood Type</label>
-                <select className="w-full p-3 border rounded-xl" value={profileForm.blood_type} onChange={(e) => setProfileForm({...profileForm, blood_type: e.target.value})}>
-                  <option value="">Select...</option>
-                  {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Date of Birth</label>
-                <input type="date" className="w-full p-3 border rounded-xl" value={profileForm.date_of_birth} onChange={(e) => setProfileForm({...profileForm, date_of_birth: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Weight (kg)</label>
-                  <input type="number" step="0.1" className="w-full p-3 border rounded-xl" value={profileForm.weight} onChange={(e) => setProfileForm({...profileForm, weight: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Height (cm)</label>
-                  <input type="number" step="0.1" className="w-full p-3 border rounded-xl" value={profileForm.height} onChange={(e) => setProfileForm({...profileForm, height: e.target.value})} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Emergency Contact Name</label>
-                <input type="text" className="w-full p-3 border rounded-xl" value={profileForm.emergency_contact_name} onChange={(e) => setProfileForm({...profileForm, emergency_contact_name: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Emergency Contact Phone</label>
-                <input type="tel" className="w-full p-3 border rounded-xl" value={profileForm.emergency_contact_phone} onChange={(e) => setProfileForm({...profileForm, emergency_contact_phone: e.target.value})} />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowProfileModal(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-semibold">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
+            <FormField label="Emergency Contact Name">
+              <input type="text" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={profileForm.emergency_contact_name} onChange={(e) => setProfileForm({...profileForm, emergency_contact_name: e.target.value})} />
+            </FormField>
+            <FormField label="Emergency Contact Phone">
+              <input type="tel" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={profileForm.emergency_contact_phone} onChange={(e) => setProfileForm({...profileForm, emergency_contact_phone: e.target.value})} />
+            </FormField>
+            <ModalButtons onCancel={() => setShowProfileModal(false)} submitText="Save Changes" color="teal" />
+          </form>
+        </Modal>
       )}
 
       {/* Allergy Modal */}
       {showAllergyModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">{editingAllergy ? 'Edit' : 'Add'} Allergy</h2>
-              <button onClick={() => setShowAllergyModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX /></button>
-            </div>
-            <form onSubmit={handleSaveAllergy} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Allergy Type *</label>
-                <select className="w-full p-3 border rounded-xl" value={allergyForm.allergy_type} onChange={(e) => setAllergyForm({...allergyForm, allergy_type: e.target.value})} required>
-                  <option value="drug">Drug/Medication</option>
-                  <option value="food">Food</option>
-                  <option value="environmental">Environmental</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Allergen Name *</label>
-                <input type="text" className="w-full p-3 border rounded-xl" placeholder="e.g., Penicillin, Peanuts" value={allergyForm.allergen} onChange={(e) => setAllergyForm({...allergyForm, allergen: e.target.value})} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Severity *</label>
-                <select className="w-full p-3 border rounded-xl" value={allergyForm.severity} onChange={(e) => setAllergyForm({...allergyForm, severity: e.target.value})} required>
-                  <option value="mild">Mild</option>
-                  <option value="moderate">Moderate</option>
-                  <option value="severe">Severe</option>
-                  <option value="life_threatening">Life Threatening</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Reaction Description</label>
-                <textarea className="w-full p-3 border rounded-xl" rows="2" placeholder="Describe the allergic reaction..." value={allergyForm.reaction} onChange={(e) => setAllergyForm({...allergyForm, reaction: e.target.value})} />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowAllergyModal(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-semibold">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-red-600 text-white rounded-xl font-semibold">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal title={`${editingAllergy ? 'Edit' : 'Add'} Allergy`} onClose={() => setShowAllergyModal(false)}>
+          <form onSubmit={handleSaveAllergy} className="space-y-5">
+            <FormField label="Allergy Type *">
+              <select className="w-full p-4 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={allergyForm.allergy_type} onChange={(e) => setAllergyForm({...allergyForm, allergy_type: e.target.value})} required>
+                <option value="drug">Drug/Medication</option>
+                <option value="food">Food</option>
+                <option value="environmental">Environmental</option>
+                <option value="other">Other</option>
+              </select>
+            </FormField>
+            <FormField label="Allergen Name *">
+              <input type="text" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="e.g., Penicillin, Peanuts" value={allergyForm.allergen} onChange={(e) => setAllergyForm({...allergyForm, allergen: e.target.value})} required />
+            </FormField>
+            <FormField label="Severity *">
+              <select className="w-full p-4 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={allergyForm.severity} onChange={(e) => setAllergyForm({...allergyForm, severity: e.target.value})} required>
+                <option value="mild">Mild</option>
+                <option value="moderate">Moderate</option>
+                <option value="severe">Severe</option>
+                <option value="life_threatening">Life Threatening</option>
+              </select>
+            </FormField>
+            <FormField label="Reaction Description">
+              <textarea className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none" rows="2" placeholder="Describe the allergic reaction..." value={allergyForm.reaction} onChange={(e) => setAllergyForm({...allergyForm, reaction: e.target.value})} />
+            </FormField>
+            <ModalButtons onCancel={() => setShowAllergyModal(false)} submitText="Save Allergy" color="rose" />
+          </form>
+        </Modal>
       )}
 
       {/* Condition Modal */}
       {showConditionModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">{editingCondition ? 'Edit' : 'Add'} Condition</h2>
-              <button onClick={() => setShowConditionModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX /></button>
-            </div>
-            <form onSubmit={handleSaveCondition} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Condition Name *</label>
-                <input type="text" className="w-full p-3 border rounded-xl" placeholder="e.g., Diabetes, Hypertension" value={conditionForm.condition_name} onChange={(e) => setConditionForm({...conditionForm, condition_name: e.target.value})} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Status</label>
-                <select className="w-full p-3 border rounded-xl" value={conditionForm.status} onChange={(e) => setConditionForm({...conditionForm, status: e.target.value})}>
-                  <option value="active">Active</option>
-                  <option value="managed">Managed</option>
-                  <option value="resolved">Resolved</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Diagnosis Date</label>
-                <input type="date" className="w-full p-3 border rounded-xl" value={conditionForm.diagnosis_date} onChange={(e) => setConditionForm({...conditionForm, diagnosis_date: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Notes</label>
-                <textarea className="w-full p-3 border rounded-xl" rows="2" value={conditionForm.notes} onChange={(e) => setConditionForm({...conditionForm, notes: e.target.value})} />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowConditionModal(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-semibold">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-yellow-600 text-white rounded-xl font-semibold">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal title={`${editingCondition ? 'Edit' : 'Add'} Condition`} onClose={() => setShowConditionModal(false)}>
+          <form onSubmit={handleSaveCondition} className="space-y-5">
+            <FormField label="Condition Name *">
+              <input type="text" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="e.g., Diabetes, Hypertension" value={conditionForm.condition_name} onChange={(e) => setConditionForm({...conditionForm, condition_name: e.target.value})} required />
+            </FormField>
+            <FormField label="Status">
+              <select className="w-full p-4 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={conditionForm.status} onChange={(e) => setConditionForm({...conditionForm, status: e.target.value})}>
+                <option value="active">Active</option>
+                <option value="managed">Managed</option>
+                <option value="resolved">Resolved</option>
+              </select>
+            </FormField>
+            <FormField label="Diagnosis Date">
+              <input type="date" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={conditionForm.diagnosis_date} onChange={(e) => setConditionForm({...conditionForm, diagnosis_date: e.target.value})} />
+            </FormField>
+            <FormField label="Notes">
+              <textarea className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none" rows="2" value={conditionForm.notes} onChange={(e) => setConditionForm({...conditionForm, notes: e.target.value})} />
+            </FormField>
+            <ModalButtons onCancel={() => setShowConditionModal(false)} submitText="Save Condition" color="amber" />
+          </form>
+        </Modal>
       )}
 
       {/* Medication Modal */}
       {showMedicationModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">{editingMedication ? 'Edit' : 'Add'} Medication</h2>
-              <button onClick={() => setShowMedicationModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX /></button>
-            </div>
-            <form onSubmit={handleSaveMedication} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Medication Name *</label>
-                <input type="text" className="w-full p-3 border rounded-xl" placeholder="e.g., Metformin" value={medicationForm.medication_name} onChange={(e) => setMedicationForm({...medicationForm, medication_name: e.target.value})} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Dosage *</label>
-                <input type="text" className="w-full p-3 border rounded-xl" placeholder="e.g., 500mg" value={medicationForm.dosage} onChange={(e) => setMedicationForm({...medicationForm, dosage: e.target.value})} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Frequency</label>
-                <select className="w-full p-3 border rounded-xl" value={medicationForm.frequency} onChange={(e) => setMedicationForm({...medicationForm, frequency: e.target.value})}>
-                  <option value="once_daily">Once Daily</option>
-                  <option value="twice_daily">Twice Daily</option>
-                  <option value="three_daily">Three Times Daily</option>
-                  <option value="four_daily">Four Times Daily</option>
-                  <option value="as_needed">As Needed</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Reason for Taking</label>
-                <input type="text" className="w-full p-3 border rounded-xl" placeholder="e.g., Blood sugar control" value={medicationForm.reason} onChange={(e) => setMedicationForm({...medicationForm, reason: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Start Date</label>
-                <input type="date" className="w-full p-3 border rounded-xl" value={medicationForm.start_date} onChange={(e) => setMedicationForm({...medicationForm, start_date: e.target.value})} />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowMedicationModal(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-semibold">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-green-600 text-white rounded-xl font-semibold">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal title={`${editingMedication ? 'Edit' : 'Add'} Medication`} onClose={() => setShowMedicationModal(false)}>
+          <form onSubmit={handleSaveMedication} className="space-y-5">
+            <FormField label="Medication Name *">
+              <input type="text" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="e.g., Metformin" value={medicationForm.medication_name} onChange={(e) => setMedicationForm({...medicationForm, medication_name: e.target.value})} required />
+            </FormField>
+            <FormField label="Dosage *">
+              <input type="text" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="e.g., 500mg" value={medicationForm.dosage} onChange={(e) => setMedicationForm({...medicationForm, dosage: e.target.value})} required />
+            </FormField>
+            <FormField label="Frequency">
+              <select className="w-full p-4 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={medicationForm.frequency} onChange={(e) => setMedicationForm({...medicationForm, frequency: e.target.value})}>
+                <option value="once_daily">Once Daily</option>
+                <option value="twice_daily">Twice Daily</option>
+                <option value="three_daily">Three Times Daily</option>
+                <option value="four_daily">Four Times Daily</option>
+                <option value="as_needed">As Needed</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </FormField>
+            <FormField label="Reason for Taking">
+              <input type="text" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" placeholder="e.g., Blood sugar control" value={medicationForm.reason} onChange={(e) => setMedicationForm({...medicationForm, reason: e.target.value})} />
+            </FormField>
+            <FormField label="Start Date">
+              <input type="date" className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={medicationForm.start_date} onChange={(e) => setMedicationForm({...medicationForm, start_date: e.target.value})} />
+            </FormField>
+            <ModalButtons onCancel={() => setShowMedicationModal(false)} submitText="Save Medication" color="emerald" />
+          </form>
+        </Modal>
       )}
+    </div>
+  );
+};
+
+// Reusable Components
+const InfoCard = ({ icon, label, value }) => (
+  <div className="flex items-center gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
+    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
+      {icon}
+    </div>
+    <div>
+      <p className="text-sm text-slate-500 font-medium">{label}</p>
+      <p className="font-semibold text-slate-800">{value}</p>
+    </div>
+  </div>
+);
+
+const Modal = ({ title, onClose, children }) => (
+  <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl animate-scale-in border border-slate-100 max-h-[90vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-display font-bold text-slate-800">{title}</h2>
+        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+          <FiX className="text-slate-400" size={20} />
+        </button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const FormField = ({ label, children }) => (
+  <div>
+    <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
+    {children}
+  </div>
+);
+
+const ModalButtons = ({ onCancel, submitText, color }) => {
+  const colorMap = {
+    teal: 'from-teal-500 to-cyan-500 shadow-teal-500/30',
+    rose: 'from-rose-500 to-red-500 shadow-rose-500/30',
+    amber: 'from-amber-500 to-orange-500 shadow-amber-500/30',
+    emerald: 'from-emerald-500 to-teal-500 shadow-emerald-500/30',
+  };
+  
+  return (
+    <div className="flex gap-3 pt-4">
+      <button type="button" onClick={onCancel} className="flex-1 py-4 bg-slate-100 rounded-xl font-semibold hover:bg-slate-200 transition-colors text-slate-700">
+        Cancel
+      </button>
+      <button type="submit" className={`flex-1 py-4 bg-gradient-to-r ${colorMap[color]} text-white rounded-xl font-semibold hover:shadow-lg transition-all`}>
+        {submitText}
+      </button>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { userAPI } from '../../services/api';
-import { FiUsers, FiPlus, FiEdit2, FiTrash2, FiSearch, FiShield, FiX } from 'react-icons/fi';
+import { FiUsers, FiPlus, FiEdit2, FiTrash2, FiSearch, FiX } from 'react-icons/fi';
 import ConfirmModal from '../../components/ConfirmModal';
 import ToastContainer from '../../components/ToastContainer';
 import { useToast } from '../../hooks/useToast';
@@ -106,7 +106,8 @@ const ManageUsers = () => {
 
       {/* Hero */}
       <section className="relative py-12 overflow-hidden" style={{ backgroundImage: 'url(/assets/images/pharmacy-bg.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 to-purple-900/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-teal-900/80 to-slate-900"></div>
+        <div className="absolute inset-0 pattern-pharmacy opacity-10"></div>
         <div className="relative z-10 container mx-auto px-6 flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3"><FiUsers size={36} /> Manage Users</h1>
@@ -230,7 +231,7 @@ const ManageUsers = () => {
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg">{editingUser ? 'Update' : 'Create'}</button>
+                <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg">{editingUser ? 'Update' : 'Create'}</button>
               </div>
             </form>
           </div>

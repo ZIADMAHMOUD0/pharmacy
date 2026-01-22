@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { cartAPI, orderAPI } from '../services/api';
-import { FiTrash2, FiShoppingBag, FiMinus, FiPlus, FiCreditCard, FiTruck, FiShield } from 'react-icons/fi';
+import { FiTrash2, FiShoppingBag, FiMinus, FiPlus, FiCreditCard, FiTruck, FiShield, FiPackage } from 'react-icons/fi';
 import ConfirmModal from '../components/ConfirmModal';
 import ToastContainer from '../components/ToastContainer';
 import { useToast } from '../hooks/useToast';
@@ -113,7 +113,7 @@ const Cart = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal
         isOpen={confirmModal.isOpen}
@@ -127,43 +127,44 @@ const Cart = () => {
       />
 
       {/* Hero Section */}
-      <section 
-        className="relative py-12 overflow-hidden"
-        style={{
-          backgroundImage: 'url(/assets/images/pharmacy-bg.jpeg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 to-purple-900/80"></div>
+      <section className="relative py-12 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-600 via-teal-700 to-cyan-700"></div>
+        <div className="absolute inset-0 pattern-pharmacy opacity-10"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
+        
         <div className="relative z-10 container mx-auto px-6">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-            <FiShoppingBag size={36} /> Shopping Cart
-          </h1>
-          <p className="text-white/70">{cartItems.length} items in your cart</p>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+              <FiShoppingBag className="text-white" size={32} />
+            </div>
+            <div>
+              <h1 className="text-4xl font-display font-bold text-white">Shopping Cart</h1>
+              <p className="text-white/60">{cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} in your cart</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-10">
         {loading ? (
           <div className="flex justify-center items-center py-20">
             <div className="text-center">
-              <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading cart...</p>
+              <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-slate-600 font-medium">Loading cart...</p>
             </div>
           </div>
         ) : cartItems.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl shadow-lg">
-            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FiShoppingBag className="text-gray-400" size={40} />
+          <div className="text-center py-20 bg-white rounded-3xl shadow-soft border border-slate-100">
+            <div className="w-24 h-24 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <FiShoppingBag className="text-slate-400" size={40} />
             </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">Your cart is empty</h3>
-            <p className="text-gray-600 mb-6">Add some products to get started!</p>
+            <h3 className="text-2xl font-display font-bold text-slate-800 mb-2">Your cart is empty</h3>
+            <p className="text-slate-500 mb-8">Add some products to get started!</p>
             <a
               href="/products"
-              className="inline-block px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-glow transition-all"
             >
-              Browse Products
+              <FiPackage /> Browse Products
             </a>
           </div>
         ) : (
@@ -173,13 +174,13 @@ const Cart = () => {
               {cartItems.map((item, index) => (
                 <div 
                   key={item.id} 
-                  className="bg-white rounded-2xl shadow-lg p-6 flex flex-col sm:flex-row gap-4 hover:shadow-xl transition-all animate-fade-in"
-                  style={{ animationDelay: `${index * 0.1}s` }}
+                  className="bg-white rounded-2xl shadow-soft p-6 flex flex-col sm:flex-row gap-5 hover:shadow-soft-xl transition-all duration-300 border border-slate-100 animate-fade-in-up"
+                  style={{ animationDelay: `${index * 100}ms` }}
                 >
                   {/* Product Image */}
-                  <div className="w-full sm:w-32 h-32 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl overflow-hidden flex-shrink-0">
+                  <div className="w-full sm:w-32 h-32 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl overflow-hidden flex-shrink-0">
                     <img 
-                      src={item.product_image ? `http://localhost:8000${item.product_image}` : `https://via.placeholder.com/150/e0e7ff/4f46e5?text=${encodeURIComponent(item.product_name)}`}
+                      src={item.product_image ? `http://localhost:8000${item.product_image}` : `https://via.placeholder.com/150/e0f2fe/0d9488?text=${encodeURIComponent(item.product_name)}`}
                       alt={item.product_name}
                       className="w-full h-full object-cover"
                     />
@@ -187,23 +188,23 @@ const Cart = () => {
                   
                   {/* Product Info */}
                   <div className="flex-1">
-                    <h3 className="font-bold text-lg text-gray-800 mb-1">{item.product_name}</h3>
-                    <p className="text-gray-500 text-sm mb-3">{item.product_manufacturer}</p>
+                    <h3 className="font-display font-bold text-lg text-slate-800 mb-1">{item.product_name}</h3>
+                    <p className="text-slate-500 text-sm mb-4">🏭 {item.product_manufacturer}</p>
                     
                     <div className="flex items-center justify-between">
                       {/* Quantity Controls */}
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleUpdateQuantity(item.id, item.quantity, -1)}
                           disabled={item.quantity <= 1}
-                          className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50"
+                          className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <FiMinus size={16} />
                         </button>
-                        <span className="w-12 text-center font-bold text-lg">{item.quantity}</span>
+                        <span className="w-14 text-center font-bold text-lg text-slate-800">{item.quantity}</span>
                         <button
                           onClick={() => handleUpdateQuantity(item.id, item.quantity, 1)}
-                          className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-center transition-colors"
+                          className="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center transition-colors"
                         >
                           <FiPlus size={16} />
                         </button>
@@ -211,10 +212,10 @@ const Cart = () => {
                       
                       {/* Price */}
                       <div className="text-right">
-                        <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                        <p className="text-2xl font-display font-bold text-teal-600">
                           ${(item.product_price * item.quantity).toFixed(2)}
                         </p>
-                        <p className="text-sm text-gray-500">${item.product_price} each</p>
+                        <p className="text-sm text-slate-500">${item.product_price} each</p>
                       </div>
                     </div>
                   </div>
@@ -222,7 +223,7 @@ const Cart = () => {
                   {/* Remove Button */}
                   <button
                     onClick={() => handleRemoveItem(item.id, item.product_name)}
-                    className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all self-start"
+                    className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all self-start"
                   >
                     <FiTrash2 size={20} />
                   </button>
@@ -232,22 +233,22 @@ const Cart = () => {
 
             {/* Order Summary */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-24">
-                <h2 className="text-xl font-bold text-gray-800 mb-6">Order Summary</h2>
+              <div className="bg-white rounded-2xl shadow-soft p-6 sticky top-24 border border-slate-100">
+                <h2 className="text-xl font-display font-bold text-slate-800 mb-6">Order Summary</h2>
                 
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-gray-600">
+                <div className="space-y-4 mb-6">
+                  <div className="flex justify-between text-slate-600">
                     <span>Subtotal ({cartItems.length} items)</span>
-                    <span>${calculateTotal()}</span>
+                    <span className="font-semibold">${calculateTotal()}</span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
+                  <div className="flex justify-between text-slate-600">
                     <span>Shipping</span>
-                    <span className="text-green-600 font-medium">Free</span>
+                    <span className="text-emerald-600 font-semibold">Free</span>
                   </div>
-                  <div className="border-t border-gray-100 pt-3">
-                    <div className="flex justify-between">
-                      <span className="text-lg font-bold text-gray-800">Total</span>
-                      <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  <div className="border-t border-slate-100 pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-display font-bold text-slate-800">Total</span>
+                      <span className="text-3xl font-display font-bold text-teal-600">
                         ${calculateTotal()}
                       </span>
                     </div>
@@ -257,16 +258,16 @@ const Cart = () => {
                 {!showCheckout ? (
                   <button
                     onClick={() => setShowCheckout(true)}
-                    className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-lg hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold text-lg hover:shadow-glow transition-all flex items-center justify-center gap-2"
                   >
-                    <FiCreditCard /> Proceed to Checkout
+                    <FiCreditCard size={20} /> Proceed to Checkout
                   </button>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 animate-fade-in">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Shipping Address</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Shipping Address</label>
                       <textarea
-                        className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none transition-all"
                         rows="3"
                         placeholder="Enter your delivery address"
                         value={checkoutForm.shipping_address}
@@ -275,26 +276,26 @@ const Cart = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Method</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Method</label>
                       <select
-                        className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white"
                         value={checkoutForm.payment_method}
                         onChange={(e) => setCheckoutForm({...checkoutForm, payment_method: e.target.value})}
                       >
-                        <option value="cash">Cash on Delivery</option>
-                        <option value="card">Credit/Debit Card</option>
+                        <option value="cash">💵 Cash on Delivery</option>
+                        <option value="card">💳 Credit/Debit Card</option>
                       </select>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-3 pt-2">
                       <button
                         onClick={() => setShowCheckout(false)}
-                        className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                        className="flex-1 py-3.5 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 transition-all"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleCheckout}
-                        className="flex-1 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                        className="flex-1 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/30 transition-all"
                       >
                         Place Order
                       </button>
@@ -303,19 +304,25 @@ const Cart = () => {
                 )}
 
                 {/* Trust Badges */}
-                <div className="mt-6 pt-6 border-t border-gray-100">
+                <div className="mt-8 pt-6 border-t border-slate-100">
                   <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                      <FiTruck className="mx-auto text-blue-600 mb-1" size={24} />
-                      <p className="text-xs text-gray-600">Free Shipping</p>
+                    <div className="group">
+                      <div className="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                        <FiTruck className="text-teal-600" size={22} />
+                      </div>
+                      <p className="text-xs text-slate-600 font-medium">Free Shipping</p>
                     </div>
-                    <div>
-                      <FiShield className="mx-auto text-green-600 mb-1" size={24} />
-                      <p className="text-xs text-gray-600">Secure</p>
+                    <div className="group">
+                      <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                        <FiShield className="text-emerald-600" size={22} />
+                      </div>
+                      <p className="text-xs text-slate-600 font-medium">Secure Pay</p>
                     </div>
-                    <div>
-                      <span className="block text-2xl mb-1">💊</span>
-                      <p className="text-xs text-gray-600">Quality</p>
+                    <div className="group">
+                      <div className="w-12 h-12 bg-cyan-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                        <span className="text-xl">💊</span>
+                      </div>
+                      <p className="text-xs text-slate-600 font-medium">Quality</p>
                     </div>
                   </div>
                 </div>

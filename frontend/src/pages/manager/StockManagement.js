@@ -15,7 +15,9 @@ const StockManagement = () => {
   const [myRequests, setMyRequests] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedProductBatches, setSelectedProductBatches] = useState([]);
-  const [requestForm, setRequestForm] = useState({ quantity: '', reason: '', batch_number: '', expiry_date: '' });
+  const [requestBatches, setRequestBatches] = useState([]); // Batches for request modal
+  const [stockMode, setStockMode] = useState('new'); // 'new' or 'existing'
+  const [requestForm, setRequestForm] = useState({ quantity: '', reason: '', batch_number: '', expiry_date: '', existing_batch_id: '' });
 
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', type: 'danger', onConfirm: () => {} });
   const [actionLoading, setActionLoading] = useState(false);
@@ -68,9 +70,22 @@ const StockManagement = () => {
     setActionLoading(false);
   };
 
-  const handleRequestStock = (product) => {
+  const handleRequestStock = async (product) => {
     setSelectedProduct(product);
-    setRequestForm({ quantity: '', reason: '', batch_number: '', expiry_date: '' });
+    setRequestForm({ quantity: '', reason: '', batch_number: '', expiry_date: '', existing_batch_id: '' });
+    setStockMode('new');
+    // Fetch batches for this product
+    try {
+      const response = await batchAPI.getByProduct(product.id);
+      const validBatches = response.data.filter(b => new Date(b.expiry_date) > new Date()); // Only non-expired
+      setRequestBatches(validBatches);
+      // Default to existing if batches exist
+      if (validBatches.length > 0) {
+        setStockMode('existing');
+      }
+    } catch (error) {
+      setRequestBatches([]);
+    }
     setShowRequestModal(true);
   };
 
@@ -83,10 +98,25 @@ const StockManagement = () => {
   const handleSubmitRequest = async (e) => {
     e.preventDefault();
     try {
-      await stockRequestAPI.create({
-        product: selectedProduct.id, quantity: parseInt(requestForm.quantity),
-        reason: requestForm.reason, batch_number: requestForm.batch_number, expiry_date: requestForm.expiry_date || null
-      });
+      const requestData = {
+        product: selectedProduct.id,
+        quantity: parseInt(requestForm.quantity),
+        reason: requestForm.reason,
+      };
+      
+      if (stockMode === 'existing' && requestForm.existing_batch_id) {
+        // Add to existing batch
+        const selectedBatch = requestBatches.find(b => b.id === parseInt(requestForm.existing_batch_id));
+        requestData.batch_number = selectedBatch?.batch_number || '';
+        requestData.expiry_date = selectedBatch?.expiry_date || null;
+        requestData.existing_batch_id = requestForm.existing_batch_id;
+      } else {
+        // Create new batch
+        requestData.batch_number = requestForm.batch_number;
+        requestData.expiry_date = requestForm.expiry_date || null;
+      }
+      
+      await stockRequestAPI.create(requestData);
       toast.success('Stock request submitted!');
       setShowRequestModal(false);
       setSelectedProduct(null);
@@ -141,7 +171,8 @@ const StockManagement = () => {
 
       {/* Hero */}
       <section className="relative py-12 overflow-hidden" style={{ backgroundImage: 'url(/assets/images/pharmacy-bg.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 to-purple-900/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-violet-900/80 to-slate-900"></div>
+        <div className="absolute inset-0 pattern-pharmacy opacity-10"></div>
         <div className="relative z-10 container mx-auto px-6 flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">📊 Stock Management</h1>
@@ -197,7 +228,7 @@ const StockManagement = () => {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <button onClick={() => handleRequestStock(product)} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:shadow-lg flex items-center gap-1 text-sm">
+                      <button onClick={() => handleRequestStock(product)} className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-lg font-medium hover:shadow-lg flex items-center gap-1 text-sm">
                         <FiPlus size={16} /> Request
                       </button>
                     </td>
@@ -311,7 +342,7 @@ const StockManagement = () => {
             <div className="mt-6 flex gap-3">
               <button
                 onClick={() => { setShowBatchModal(false); handleRequestStock(selectedProduct); }}
-                className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg flex items-center justify-center gap-2"
               >
                 <FiPlus /> Request More Stock
               </button>
@@ -326,7 +357,7 @@ const StockManagement = () => {
       {/* Request Stock Modal */}
       {showRequestModal && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Request Stock</h2>
               <button onClick={() => setShowRequestModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX size={20} /></button>
@@ -336,26 +367,122 @@ const StockManagement = () => {
               <p className="text-sm text-blue-600">Current Stock: {selectedProduct.total_stock || 0}</p>
             </div>
             <form onSubmit={handleSubmitRequest} className="space-y-4">
+              {/* Quantity */}
               <div>
                 <label className="block text-sm font-semibold mb-1">Quantity *</label>
-                <input type="number" min="1" className="w-full p-3 border rounded-xl" value={requestForm.quantity} onChange={(e) => setRequestForm({...requestForm, quantity: e.target.value})} required />
+                <input type="number" min="1" className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" value={requestForm.quantity} onChange={(e) => setRequestForm({...requestForm, quantity: e.target.value})} required />
               </div>
+
+              {/* Batch Mode Toggle */}
               <div>
-                <label className="block text-sm font-semibold mb-1">Batch Number (Optional)</label>
-                <input type="text" placeholder="e.g., BATCH-2024-001" className="w-full p-3 border rounded-xl" value={requestForm.batch_number} onChange={(e) => setRequestForm({...requestForm, batch_number: e.target.value})} />
+                <label className="block text-sm font-semibold mb-2">Add Stock To</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStockMode('existing')}
+                    disabled={requestBatches.length === 0}
+                    className={`p-3 rounded-xl border-2 font-medium transition-all flex items-center justify-center gap-2 ${
+                      stockMode === 'existing' 
+                        ? 'border-teal-500 bg-teal-50 text-teal-700' 
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    } ${requestBatches.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <FiPackage size={18} />
+                    Existing Batch
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockMode('new')}
+                    className={`p-3 rounded-xl border-2 font-medium transition-all flex items-center justify-center gap-2 ${
+                      stockMode === 'new' 
+                        ? 'border-teal-500 bg-teal-50 text-teal-700' 
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <FiPlus size={18} />
+                    New Batch
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold mb-1">Expected Expiry Date (Optional)</label>
-                <input type="date" className="w-full p-3 border rounded-xl" value={requestForm.expiry_date} onChange={(e) => setRequestForm({...requestForm, expiry_date: e.target.value})} />
-                <p className="text-xs text-gray-500 mt-1">Defaults to 1 year from approval if not provided</p>
-              </div>
+
+              {/* Existing Batch Selection */}
+              {stockMode === 'existing' && requestBatches.length > 0 && (
+                <div className="animate-fade-in">
+                  <label className="block text-sm font-semibold mb-1">Select Batch *</label>
+                  <select
+                    className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    value={requestForm.existing_batch_id}
+                    onChange={(e) => setRequestForm({...requestForm, existing_batch_id: e.target.value})}
+                    required
+                  >
+                    <option value="">Choose a batch...</option>
+                    {requestBatches.map(batch => (
+                      <option key={batch.id} value={batch.id}>
+                        {batch.batch_number} — {batch.quantity} units — Exp: {new Date(batch.expiry_date).toLocaleDateString()}
+                      </option>
+                    ))}
+                  </select>
+                  {requestForm.existing_batch_id && (
+                    <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-700">
+                        ✓ Stock will be added to the selected batch
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* New Batch Fields */}
+              {stockMode === 'new' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Batch Number (Optional)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g., BATCH-2024-001" 
+                      className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" 
+                      value={requestForm.batch_number} 
+                      onChange={(e) => setRequestForm({...requestForm, batch_number: e.target.value})} 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Auto-generated if left empty</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Expected Expiry Date (Optional)</label>
+                    <input 
+                      type="date" 
+                      className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent" 
+                      value={requestForm.expiry_date} 
+                      onChange={(e) => setRequestForm({...requestForm, expiry_date: e.target.value})} 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Defaults to 1 year from approval if not provided</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Reason */}
               <div>
                 <label className="block text-sm font-semibold mb-1">Reason *</label>
-                <textarea className="w-full p-3 border rounded-xl resize-none" rows="3" placeholder="Explain why stock is needed..." value={requestForm.reason} onChange={(e) => setRequestForm({...requestForm, reason: e.target.value})} required />
+                <textarea 
+                  className="w-full p-3 border rounded-xl resize-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" 
+                  rows="3" 
+                  placeholder="Explain why stock is needed..." 
+                  value={requestForm.reason} 
+                  onChange={(e) => setRequestForm({...requestForm, reason: e.target.value})} 
+                  required 
+                />
               </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowRequestModal(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-semibold">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold">Submit</button>
+
+              {/* Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setShowRequestModal(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-semibold hover:bg-gray-200 transition-colors">
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                >
+                  Submit Request
+                </button>
               </div>
             </form>
           </div>

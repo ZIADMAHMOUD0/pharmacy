@@ -111,7 +111,8 @@ const ManageStockRequests = () => {
 
       {/* Hero Section */}
       <section className="relative py-12 overflow-hidden" style={{ backgroundImage: 'url(/assets/images/pharmacy-bg.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 to-purple-900/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-teal-900/80 to-slate-900"></div>
+        <div className="absolute inset-0 pattern-pharmacy opacity-10"></div>
         <div className="relative z-10 container mx-auto px-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -235,7 +236,7 @@ const ManageStockRequests = () => {
                   {/* Right: Quantity */}
                   <div className="text-center md:text-right">
                     <p className="text-sm text-gray-500">Quantity Requested</p>
-                    <p className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    <p className="text-4xl font-bold bg-gradient-to-r from-teal-500 to-cyan-500 bg-clip-text text-transparent">
                       {req.quantity}
                     </p>
                     <p className="text-sm text-gray-500">units</p>

@@ -93,6 +93,43 @@ class UserViewSet(viewsets.ModelViewSet):
         user.set_password(new_password)
         user.save()
         return Response({'message': 'Password changed successfully'})
+    
+    @action(detail=False, methods=['get'])
+    def my_stats(self, request):
+        """Get current user's stats: total orders, questions asked, member since"""
+        user = request.user
+        
+        # Count orders for this user
+        total_orders = user.orders.count()
+        
+        # Count questions asked by this user
+        total_questions = user.questions.count()
+        
+        # Get member since date
+        member_since = user.date_joined.strftime('%B %Y') if user.date_joined else 'Unknown'
+        member_since_year = user.date_joined.year if user.date_joined else None
+        
+        return Response({
+            'total_orders': total_orders,
+            'total_questions': total_questions,
+            'member_since': member_since,
+            'member_since_year': member_since_year,
+        })
+    
+    @action(detail=False, methods=['get', 'patch'])
+    def me(self, request):
+        """Get or update current user's profile"""
+        user = request.user
+        
+        if request.method == 'GET':
+            return Response(UserSerializer(user).data)
+        
+        # PATCH - update profile
+        serializer = UserSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -391,6 +428,70 @@ class CartViewSet(viewsets.ModelViewSet):
             cart_item.save()
         
         return Response(CartSerializer(cart_item).data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['get'])
+    def check_allergy(self, request):
+        """Check if user has allergy to a product's name or active ingredient"""
+        product_id = request.query_params.get('product_id')
+        if not product_id:
+            return Response({'error': 'Product ID required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check user's drug allergies against the product's name AND active ingredient
+        user_allergies = Allergy.objects.filter(
+            patient=request.user,
+            allergy_type='drug',
+            is_active=True
+        )
+        
+        if not user_allergies.exists():
+            return Response({
+                'has_allergy': False,
+                'allergies': [],
+                'product_name': product.name,
+                'active_ingredient': product.active_ingredient or ''
+            })
+        
+        matching_allergies = []
+        product_name_lower = product.name.lower()
+        active_ingredients = []
+        if product.active_ingredient:
+            active_ingredients = [ing.strip().lower() for ing in product.active_ingredient.split(',')]
+        
+        for allergy in user_allergies:
+            allergen_lower = allergy.allergen.lower()
+            matched = False
+            
+            # Check if allergen matches product name
+            if allergen_lower in product_name_lower or product_name_lower in allergen_lower:
+                matched = True
+            
+            # Check if allergen matches any active ingredient
+            if not matched:
+                for ingredient in active_ingredients:
+                    if allergen_lower in ingredient or ingredient in allergen_lower:
+                        matched = True
+                        break
+            
+            if matched:
+                matching_allergies.append({
+                    'id': allergy.id,
+                    'allergen': allergy.allergen,
+                    'severity': allergy.severity,
+                    'severity_display': allergy.get_severity_display(),
+                    'reaction': allergy.reaction
+                })
+        
+        return Response({
+            'has_allergy': len(matching_allergies) > 0,
+            'allergies': matching_allergies,
+            'product_name': product.name,
+            'active_ingredient': product.active_ingredient or ''
+        })
 
 
 # ============================================================================
@@ -556,6 +657,87 @@ class CurrentMedicationViewSet(viewsets.ModelViewSet):
                 serializer.save(patient_id=patient_id)
                 return
         serializer.save(patient=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def check_allergy(self, request):
+        """
+        Check if a medication matches user's allergies by:
+        1. Medication name matching allergen
+        2. Product's active ingredient matching allergen
+        """
+        medication_name = request.query_params.get('medication_name', '').strip()
+        if not medication_name:
+            return Response({'error': 'Medication name required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        med_name_lower = medication_name.lower()
+        
+        # Get user's drug allergies
+        user_allergies = Allergy.objects.filter(
+            patient=request.user,
+            allergy_type='drug',
+            is_active=True
+        )
+        
+        if not user_allergies.exists():
+            return Response({
+                'has_allergy': False,
+                'matching_allergies': [],
+                'matched_by': []
+            })
+        
+        matching_allergies = []
+        matched_by = []  # Track what matched: 'name' or 'active_ingredient'
+        
+        # Find products matching this medication name to get active ingredients
+        matching_products = Product.objects.filter(
+            Q(name__icontains=medication_name) | Q(name__iexact=medication_name)
+        )
+        
+        # Collect all active ingredients from matching products
+        active_ingredients = set()
+        for product in matching_products:
+            if product.active_ingredient:
+                for ing in product.active_ingredient.split(','):
+                    active_ingredients.add(ing.strip().lower())
+        
+        # Check each allergy
+        for allergy in user_allergies:
+            allergen_lower = allergy.allergen.lower()
+            matched = False
+            match_type = []
+            
+            # Check if medication name matches allergen
+            if allergen_lower in med_name_lower or med_name_lower in allergen_lower:
+                matched = True
+                match_type.append('medication_name')
+            
+            # Check if any active ingredient matches allergen
+            for ingredient in active_ingredients:
+                if allergen_lower in ingredient or ingredient in allergen_lower:
+                    matched = True
+                    if 'active_ingredient' not in match_type:
+                        match_type.append('active_ingredient')
+            
+            if matched:
+                matching_allergies.append({
+                    'id': allergy.id,
+                    'allergen': allergy.allergen,
+                    'severity': allergy.severity,
+                    'severity_display': allergy.get_severity_display(),
+                    'reaction': allergy.reaction
+                })
+                matched_by.append({
+                    'allergen': allergy.allergen,
+                    'match_type': match_type
+                })
+        
+        return Response({
+            'has_allergy': len(matching_allergies) > 0,
+            'matching_allergies': matching_allergies,
+            'matched_by': matched_by,
+            'medication_name': medication_name,
+            'found_active_ingredients': list(active_ingredients)
+        })
 
 
 class MedicalNoteViewSet(viewsets.ModelViewSet):
@@ -642,13 +824,25 @@ class QuestionViewSet(viewsets.ModelViewSet):
             return Question.objects.all().order_by('-created_at')
         return Question.objects.none()
     
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
     def create(self, request, *args, **kwargs):
         question = Question.objects.create(
             customer=request.user,
             title=request.data.get('title'),
             question_text=request.data.get('question_text')
         )
-        return Response(QuestionSerializer(question).data, status=status.HTTP_201_CREATED)
+        
+        # Handle image upload
+        if 'image' in request.FILES:
+            question.image = request.FILES['image']
+            question.save()
+        
+        serializer = QuestionSerializer(question, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def update(self, request, *args, **kwargs):
         question = self.get_object()
@@ -659,8 +853,22 @@ class QuestionViewSet(viewsets.ModelViewSet):
         
         question.title = request.data.get('title', question.title)
         question.question_text = request.data.get('question_text', question.question_text)
+        
+        # Handle image update
+        if 'image' in request.FILES:
+            # Delete old image if exists
+            if question.image:
+                question.image.delete(save=False)
+            question.image = request.FILES['image']
+        elif 'image' in request.data and request.data['image'] == '':
+            # Remove image if empty string is sent
+            if question.image:
+                question.image.delete(save=False)
+            question.image = None
+        
         question.save()
-        return Response(QuestionSerializer(question).data)
+        serializer = QuestionSerializer(question, context={'request': request})
+        return Response(serializer.data)
     
     def partial_update(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
@@ -715,13 +923,26 @@ class StockRequestViewSet(viewsets.ModelViewSet):
         return StockRequest.objects.none()
     
     def create(self, request, *args, **kwargs):
+        batch_number = request.data.get('batch_number', '')
+        expiry_date = request.data.get('expiry_date')
+        
+        # If existing_batch_id is provided, get the batch info
+        existing_batch_id = request.data.get('existing_batch_id')
+        if existing_batch_id:
+            try:
+                existing_batch = ProductBatch.objects.get(id=existing_batch_id)
+                batch_number = existing_batch.batch_number
+                expiry_date = existing_batch.expiry_date
+            except ProductBatch.DoesNotExist:
+                pass
+        
         stock_request = StockRequest.objects.create(
             product_id=request.data.get('product'),
             requested_by=request.user,
             quantity=request.data.get('quantity'),
             reason=request.data.get('reason', ''),
-            batch_number=request.data.get('batch_number', ''),
-            expiry_date=request.data.get('expiry_date')
+            batch_number=batch_number,
+            expiry_date=expiry_date
         )
         return Response(StockRequestSerializer(stock_request).data, status=status.HTTP_201_CREATED)
     

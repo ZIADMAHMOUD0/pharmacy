@@ -136,7 +136,8 @@ const ManageBatches = () => {
 
       {/* Hero Section */}
       <section className="relative py-12 overflow-hidden" style={{ backgroundImage: 'url(/assets/images/pharmacy-bg.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 to-purple-900/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-teal-900/80 to-slate-900"></div>
+        <div className="absolute inset-0 pattern-pharmacy opacity-10"></div>
         <div className="relative z-10 container mx-auto px-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -214,7 +215,7 @@ const ManageBatches = () => {
         ) : (
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+              <thead className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white">
                 <tr>
                   <th className="px-6 py-4 text-left font-semibold">Product</th>
                   <th className="px-6 py-4 text-left font-semibold">Batch Number</th>
@@ -325,7 +326,7 @@ const ManageBatches = () => {
                 <button type="button" onClick={() => { setShowModal(false); setEditingBatch(null); }} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg">
+                <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg">
                   {editingBatch ? 'Update' : 'Create'} Batch
                 </button>
               </div>

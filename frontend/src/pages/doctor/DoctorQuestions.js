@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { questionAPI } from '../../services/api';
-import { FiEdit2, FiCheck, FiTrash2, FiMessageCircle, FiClock, FiSend } from 'react-icons/fi';
+import { FiEdit2, FiCheck, FiTrash2, FiMessageCircle, FiClock, FiSend, FiImage, FiX } from 'react-icons/fi';
 import ConfirmModal from '../../components/ConfirmModal';
 import ToastContainer from '../../components/ToastContainer';
 import { useToast } from '../../hooks/useToast';
@@ -16,6 +16,7 @@ const DoctorQuestions = () => {
   
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', type: 'danger', onConfirm: () => {} });
   const [actionLoading, setActionLoading] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null);
   const toast = useToast();
 
   useEffect(() => { fetchQuestions(); }, []);
@@ -105,7 +106,8 @@ const DoctorQuestions = () => {
 
       {/* Hero */}
       <section className="relative py-12 overflow-hidden" style={{ backgroundImage: 'url(/assets/images/doctors-bg.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 to-purple-900/80"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-cyan-900/80 to-slate-900"></div>
+        <div className="absolute inset-0 pattern-pharmacy opacity-10"></div>
         <div className="relative z-10 container mx-auto px-6">
           <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">👨‍⚕️ Patient Questions</h1>
           <p className="text-white/70">{unanswered.length} pending • {answered.length} answered</p>
@@ -128,7 +130,14 @@ const DoctorQuestions = () => {
                     <div key={q.id} onClick={() => setSelectedQuestion(q)}
                       className={`bg-white rounded-2xl shadow-lg p-5 cursor-pointer hover:shadow-xl transition-all border-l-4 border-yellow-400 ${selectedQuestion?.id === q.id ? 'ring-2 ring-blue-500' : ''}`}
                       style={{ animationDelay: `${i * 0.1}s` }}>
-                      <h3 className="font-bold text-lg text-gray-800 mb-2">{q.title}</h3>
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-lg text-gray-800">{q.title}</h3>
+                        {q.image_url && (
+                          <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                            <FiImage size={12} /> Image
+                          </span>
+                        )}
+                      </div>
                       <p className="text-gray-600 text-sm mb-3 line-clamp-2">{q.question_text}</p>
                       <div className="flex justify-between text-xs text-gray-500">
                         <span className="text-blue-600 font-semibold">Patient: {q.customer_name}</span>
@@ -143,18 +152,34 @@ const DoctorQuestions = () => {
             {/* Answer Panel */}
             <div>
               {selectedQuestion ? (
-                <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-24">
+                <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-24 max-h-[85vh] overflow-y-auto">
                   <h2 className="text-xl font-bold mb-4">Answer Question</h2>
                   <div className="bg-blue-50 p-4 rounded-xl mb-4 border border-blue-100">
                     <h3 className="font-bold text-gray-800 mb-2">{selectedQuestion.title}</h3>
                     <p className="text-gray-700 mb-2">{selectedQuestion.question_text}</p>
+                    
+                    {/* Display attached image */}
+                    {selectedQuestion.image_url && (
+                      <div className="mt-3 mb-2">
+                        <p className="text-sm text-purple-600 font-semibold mb-2 flex items-center gap-1">
+                          <FiImage size={14} /> Attached Image:
+                        </p>
+                        <img 
+                          src={selectedQuestion.image_url} 
+                          alt="Attached" 
+                          className="max-h-60 rounded-xl border border-blue-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setViewingImage(selectedQuestion.image_url)}
+                        />
+                      </div>
+                    )}
+                    
                     <p className="text-sm text-blue-600 font-semibold">Patient: {selectedQuestion.customer_name}</p>
                   </div>
                   <form onSubmit={handleSubmitAnswer}>
                     <label className="block font-semibold mb-2">Your Answer:</label>
                     <textarea className="w-full p-4 border rounded-xl resize-none mb-4" rows="5" placeholder="Provide a helpful answer..." value={answer} onChange={(e) => setAnswer(e.target.value)} required />
                     <div className="flex gap-2">
-                      <button type="submit" disabled={submitting} className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2">
+                      <button type="submit" disabled={submitting} className="flex-1 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold flex items-center justify-center gap-2">
                         {submitting ? <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Submitting...</> : <><FiSend /> Submit Answer</>}
                       </button>
                       <button type="button" onClick={() => { setSelectedQuestion(null); setAnswer(''); }} className="px-6 py-3 bg-gray-100 rounded-xl font-semibold">Cancel</button>
@@ -181,10 +206,27 @@ const DoctorQuestions = () => {
               {answered.map((q, i) => (
                 <div key={q.id} className="bg-white rounded-2xl shadow-lg p-5 border-l-4 border-green-400" style={{ animationDelay: `${i * 0.1}s` }}>
                   <div className="flex justify-between items-start mb-3">
-                    <h3 className="font-bold text-gray-800">{q.title}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-gray-800">{q.title}</h3>
+                      {q.image_url && (
+                        <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">
+                          <FiImage size={10} />
+                        </span>
+                      )}
+                    </div>
                     <button onClick={() => handleDeleteQuestion(q)} className="p-1 text-gray-400 hover:text-red-600 rounded-lg"><FiTrash2 size={16} /></button>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded-xl mb-3 text-sm text-gray-600">{q.question_text}</div>
+                  <div className="bg-gray-50 p-3 rounded-xl mb-3 text-sm text-gray-600">
+                    {q.question_text}
+                    {q.image_url && (
+                      <img 
+                        src={q.image_url} 
+                        alt="Attached" 
+                        className="mt-2 max-h-32 rounded-lg cursor-pointer hover:opacity-90"
+                        onClick={() => setViewingImage(q.image_url)}
+                      />
+                    )}
+                  </div>
                   <div className="bg-green-50 p-3 rounded-xl border border-green-100">
                     {editingAnswerId === q.id ? (
                       <div>
@@ -211,6 +253,27 @@ const DoctorQuestions = () => {
           )}
         </div>
       </div>
+
+      {/* Image Viewer Modal */}
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <button 
+            className="absolute top-4 right-4 text-white hover:text-gray-300 p-2"
+            onClick={() => setViewingImage(null)}
+          >
+            <FiX size={32} />
+          </button>
+          <img 
+            src={viewingImage} 
+            alt="Full size" 
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };
