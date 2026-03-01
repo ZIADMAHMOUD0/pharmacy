@@ -41,8 +41,8 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
 # Set AI Model
-os.environ['OLLAMA_URL'] = 'http://localhost:11434'  # Default
-os.environ['OLLAMA_MODEL'] = 'tinyllama'
+os.environ['OPENROUTER_API_KEY'] = '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'
+os.environ['OPENROUTER_MODEL'] = 'any-other/model:free'
 # Application definition
 
 INSTALLED_APPS = [
