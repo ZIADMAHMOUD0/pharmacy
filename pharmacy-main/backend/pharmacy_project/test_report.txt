@@ -1,0 +1,147 @@
+================================================================================
+                    PHARMACARE TEST REPORT
+================================================================================
+
+Generated: 2026-01-09 14:23:45
+Total Tests: 113
+
+--------------------------------------------------------------------------------
+                         SUMMARY
+--------------------------------------------------------------------------------
+  [PASS]   Passed:  113
+  [FAIL]   Failed:  0
+  [ERROR]  Errors:  0
+
+  Pass Rate: 100.0%
+
+  STATUS: ALL TESTS PASSED!
+
+--------------------------------------------------------------------------------
+                    TESTS BY CATEGORY
+--------------------------------------------------------------------------------
+
+  [PASS] Other (111/111)
+  --------------------------------------------------
+      [PASS] Test creating allergy record
+      [PASS] Test listing allergies
+      [PASS] Test login with invalid credentials
+      [PASS] Test successful login
+      [PASS] Test user registration
+      [PASS] Test adding item to cart
+      [PASS] Test getting cart items
+      [PASS] Test removing item from cart
+      [PASS] Test updating cart item quantity
+      [PASS] Test creating category
+      [PASS] Test deleting category
+      [PASS] Test listing categories
+      [PASS] Test updating category
+      [PASS] Test doctor viewing patient medical history
+      [PASS] Test getting own medical profile
+      [PASS] Test updating own medical profile
+      [PASS] Test admin approving order
+      [PASS] Test checkout process
+      [PASS] Test customer can only see their orders
+      [PASS] Test admin rejecting order
+      [PASS] Test creating product as admin
+      [PASS] Test low stock products endpoint
+      [PASS] Test product search
+      [PASS] Test creating product batch
+      [PASS] Test getting expired batches
+      [PASS] Test getting batches expiring soon
+      [PASS] Test doctor answering question
+      [PASS] Test creating a question
+      [PASS] Test allergy severity levels
+      [PASS] Test creating allergy record
+      [PASS] Test adding item to cart
+      [PASS] Test cart item uniqueness per customer-product
+      [PASS] Test category name uniqueness
+      [PASS] Test creating a category
+      [PASS] Test creating chronic condition
+      [PASS] Test creating current medication
+      [PASS] Test creating medical note
+      [PASS] Test private medical note
+      [PASS] Test creating an order
+      [PASS] Test order status transitions
+      [PASS] Test creating medical profile
+      [PASS] Test only one profile per patient
+      [PASS] Test expired batch detection
+      [PASS] Test non-expired batch
+      [PASS] Test batch number uniqueness per product
+      [PASS] Test creating a product batch
+      [PASS] Test creating a product
+      [PASS] Test low stock detection
+      [PASS] Test product price must be positive
+      [PASS] Test product total stock calculation
+      [PASS] Test answering a question
+      [PASS] Test creating a question
+      [PASS] Test creating an admin user
+      [PASS] Test creating a customer user
+      [PASS] Test creating a doctor user
+      [PASS] Test creating a store manager user
+      [PASS] Test user string representation
+      [PASS] Test cart serialization
+      [PASS] Test product count
+      [PASS] Test category serialization
+      [PASS] Test allergy serialization
+      [PASS] Test condition serialization
+      [PASS] Test medication serialization
+      [PASS] Test profile serialization
+      [PASS] Test order serialization
+      [PASS] Test expired batch flag
+      [PASS] Test batch serialization
+      [PASS] Test low stock flag
+      [PASS] Test product serialization
+      [PASS] Test user serialization
+      [PASS] Test check drug allergy
+      [PASS] Test delete allergy
+      [PASS] Test update allergy
+      [PASS] Test create chronic condition
+      [PASS] Test delete condition
+      [PASS] Test list conditions
+      [PASS] Test update condition
+      [PASS] Test create medication
+      [PASS] Test delete medication
+      [PASS] Test list medications
+      [PASS] Test update medication
+      [PASS] Test doctor creates note
+      [PASS] Test delete note
+      [PASS] Test list notes
+      [PASS] Test update note
+      [PASS] Test cancel order
+      [PASS] Test get order detail
+      [PASS] Test reject order
+      [PASS] Test update order status
+      [PASS] Test create patient record
+      [PASS] Test list patient records
+      [PASS] Test delete batch
+      [PASS] Test get batches by product
+      [PASS] Test get batches expiring soon
+      [PASS] Test list all batches
+      [PASS] Test update batch
+      [PASS] Test delete product
+      [PASS] Test get low stock products
+      [PASS] Test update product
+      [PASS] Test delete question
+      [PASS] Test list questions
+      [PASS] Test update question
+      [PASS] Test approve stock request
+      [PASS] Test create stock request
+      [PASS] Test list stock requests
+      [PASS] Test reject stock request
+      [PASS] Test change password
+      [PASS] Test change password with wrong old password
+      [PASS] Test admin can get all users
+      [PASS] Test get user profile
+      [PASS] Test update user profile
+
+  [PASS] authenticated (1/1)
+  --------------------------------------------------
+      [PASS] Test listing products
+
+  [PASS] unauthenticated (1/1)
+  --------------------------------------------------
+      [PASS] Test listing products
+
+================================================================================
+                      END OF REPORT
+================================================================================
