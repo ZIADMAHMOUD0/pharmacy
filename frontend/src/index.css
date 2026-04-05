@@ -49,7 +49,7 @@
 }
 
 /* Dark Mode Variables */
-[data-theme="dark"] {
+[data-theme="dark"], html.dark {
   --color-bg: #0f172a;
   --color-surface: #1e293b;
   --color-text: #f1f5f9;

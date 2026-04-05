@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { cartAPI, orderAPI } from '../services/api';
-import { FiTrash2, FiShoppingBag, FiMinus, FiPlus, FiCreditCard, FiTruck, FiShield, FiPackage } from 'react-icons/fi';
+import { FiTrash2, FiShoppingBag, FiMinus, FiPlus, FiCreditCard, FiTruck, FiShield, FiPackage, FiImage } from 'react-icons/fi';
 import ConfirmModal from '../components/ConfirmModal';
 import ToastContainer from '../components/ToastContainer';
 import { useToast } from '../hooks/useToast';
@@ -178,12 +178,23 @@ const Cart = () => {
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
                   {/* Product Image */}
-                  <div className="w-full sm:w-32 h-32 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl overflow-hidden flex-shrink-0">
-                    <img 
-                      src={item.product_image ? `http://localhost:8000${item.product_image}` : `https://via.placeholder.com/150/e0f2fe/0d9488?text=${encodeURIComponent(item.product_name)}`}
-                      alt={item.product_name}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-full sm:w-32 h-32 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl overflow-hidden flex-shrink-0 relative">
+                    {item.product_image ? (
+                      <img 
+                        src={item.product_image.startsWith('http') ? item.product_image : `http://localhost:8000${item.product_image}`}
+                        alt={item.product_name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://via.placeholder.com/150/e0f2fe/0d9488?text=${encodeURIComponent(item.product_name)}`;
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-teal-600/40">
+                        <FiImage size={32} className="mb-1" />
+                        <span className="text-[10px] font-medium uppercase tracking-wider">No Photo</span>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Product Info */}

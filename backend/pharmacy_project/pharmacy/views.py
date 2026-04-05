@@ -15,10 +15,23 @@ import logging
 from rest_framework.views import APIView
 from django.http import StreamingHttpResponse
 import json
-import logging
 from .chatbot_ai_simple import get_chatbot_instance
 
+from rest_framework.pagination import PageNumberPagination
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+
 logger = logging.getLogger(__name__)
+
+class OptionalPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
+    
+    def paginate_queryset(self, queryset, request, view=None):
+        if request.query_params.get('paginate') == 'false':
+            return None
+        return super().paginate_queryset(queryset, request, view)
 
 
 # ============================================================================
@@ -137,6 +150,29 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
     
+    def get_queryset(self):
+        from django.db.models import Q
+        queryset = Product.objects.all()
+        
+        category = self.request.query_params.get('category')
+        if category and category != 'all' and category != 'null':
+            queryset = queryset.filter(category_id=category)
+            
+        search_query = self.request.query_params.get('q')
+        if search_query:
+            queryset = queryset.filter(
+                Q(name__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(manufacturer__icontains=search_query)
+            )
+            
+        return queryset
+    pagination_class = OptionalPagination
+    
+    @method_decorator(cache_page(60 * 5))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
@@ -188,6 +224,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = OptionalPagination
     
     def get_queryset(self):
         user = self.request.user
@@ -820,7 +857,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == 'customer':
             return Question.objects.filter(customer=user).order_by('-created_at')
-        elif user.role == 'doctor':
+        elif user.role in ['doctor', 'admin']:
             return Question.objects.all().order_by('-created_at')
         return Question.objects.none()
     
@@ -846,9 +883,11 @@ class QuestionViewSet(viewsets.ModelViewSet):
     
     def update(self, request, *args, **kwargs):
         question = self.get_object()
-        if question.customer != request.user:
+        # Customers can only edit their own (unanswered) questions.
+        # Doctors/admins can edit any unanswered question (useful for moderation/fixes).
+        if request.user.role == 'customer' and question.customer != request.user:
             return Response({'error': 'You can only edit your own questions'}, status=status.HTTP_403_FORBIDDEN)
-        if question.is_answered:
+        if question.is_answered and request.user.role not in ['admin', 'doctor']:
             return Response({'error': 'Cannot edit an answered question'}, status=status.HTTP_400_BAD_REQUEST)
         
         question.title = request.data.get('title', question.title)
@@ -875,10 +914,13 @@ class QuestionViewSet(viewsets.ModelViewSet):
     
     def destroy(self, request, *args, **kwargs):
         question = self.get_object()
-        if question.customer != request.user:
+        # Allow deletion by:
+        # - the customer who created the question (history cleanup)
+        # - admins/doctors (moderation)
+        if not (question.customer == request.user or request.user.role in ['admin', 'doctor']):
             return Response({'error': 'You can only delete your own questions'}, status=status.HTTP_403_FORBIDDEN)
-        if question.is_answered:
-            return Response({'error': 'Cannot delete an answered question'}, status=status.HTTP_400_BAD_REQUEST)
+        # NOTE: Customers are allowed to delete their own question even if it is answered,
+        # because this endpoint is used as "delete from my history".
         
         question.delete()
         return Response({'message': 'Question deleted successfully'}, status=status.HTTP_204_NO_CONTENT)

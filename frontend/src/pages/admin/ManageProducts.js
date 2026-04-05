@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { productAPI, categoryAPI } from '../../services/api';
 import { 
   FiPackage, FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, 
@@ -9,6 +10,7 @@ import ToastContainer from '../../components/ToastContainer';
 import { useToast } from '../../hooks/useToast';
 
 const ManageProducts = () => {
+  const location = useLocation();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,8 +42,17 @@ const ManageProducts = () => {
   useEffect(() => { 
     fetchProducts(); 
     fetchCategories(); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Initialize category filter from URL query (?categoryId=123)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const categoryId = params.get('categoryId');
+    if (categoryId) {
+      setFilterCategory(categoryId);
+    }
+  }, [location.search]);
   const fetchProducts = async () => {
     try {
       setLoading(true);

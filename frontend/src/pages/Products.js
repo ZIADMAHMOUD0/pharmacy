@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { productAPI, cartAPI, categoryAPI } from '../services/api';
-import { FiShoppingCart, FiSearch, FiLoader, FiFilter, FiX, FiHeart, FiPackage, FiImage, FiAlertTriangle, FiGrid, FiList } from 'react-icons/fi';
+import { FiShoppingCart, FiSearch, FiLoader, FiFilter, FiX, FiHeart, FiPackage, FiImage, FiAlertTriangle, FiGrid, FiList, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import ToastContainer from '../components/ToastContainer';
 import { useToast } from '../hooks/useToast';
+import { motion } from 'framer-motion';
 
 const Products = () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [products, setProducts] = useState([]);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [categories, setCategories] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,16 +23,18 @@ const Products = () => {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await productAPI.getAll();
-      setProducts(response.data);
-      setFilteredProducts(response.data);
+      const response = await productAPI.getAllPaginated(currentPage, selectedCategory, searchQuery);
+      setProducts(response.data.results);
+      setFilteredProducts(response.data.results);
+      setTotalProducts(response.data.count);
+      setTotalPages(Math.ceil(response.data.count / 20));
     } catch (error) {
       console.error('Error fetching products:', error);
       toast.error('Failed to load products');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage, selectedCategory, searchQuery]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -40,41 +46,22 @@ const Products = () => {
   }, []);
 
   useEffect(() => {
-    if (products.length === 0) {
-      setFilteredProducts([]);
-      return;
-    }
-
-    let filtered = products;
-
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(product => 
-        product.category === parseInt(selectedCategory)
-      );
-    }
-
-    if (searchQuery.trim() !== '') {
-      filtered = filtered.filter(product => {
-        const name = product.name ? product.name.toLowerCase() : '';
-        const categoryName = product.category_name ? product.category_name.toLowerCase() : '';
-        const manufacturer = product.manufacturer ? product.manufacturer.toLowerCase() : '';
-        const description = product.description ? product.description.toLowerCase() : '';
-        const query = searchQuery.toLowerCase();
-
-        return name.includes(query) ||
-               categoryName.includes(query) ||
-               manufacturer.includes(query) ||
-               description.includes(query);
-      });
-    }
-
-    setFilteredProducts(filtered);
-  }, [products, searchQuery, selectedCategory]);
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory]);
 
   useEffect(() => {
     fetchProducts();
+  }, [fetchProducts]);
+
+  useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [fetchCategories]);
+
+  // Framer Motion Variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
 
   const addToCart = async (productId, forceAdd = false) => {
     const product = products.find(p => p.id === productId);
@@ -210,7 +197,7 @@ const Products = () => {
           <div className="max-w-3xl">
             <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white/80 text-sm font-medium mb-6">
               <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-              {products.length} products available
+              {totalProducts} products available
             </span>
             <h1 className="text-4xl md:text-5xl font-display font-bold text-white mb-4">
               Our Products
@@ -246,7 +233,7 @@ const Products = () => {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar */}
           <aside className="lg:w-72 flex-shrink-0">
-            <div className="bg-white rounded-2xl shadow-soft p-6 sticky top-24 border border-slate-100">
+            <div className="bg-white rounded-2xl shadow-soft p-6 sticky top-24 border border-slate-100 transition-colors">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-display font-bold text-lg text-slate-800 flex items-center gap-2">
                   <FiFilter className="text-teal-600" /> Categories
@@ -274,7 +261,7 @@ const Products = () => {
                   <span className={`px-2.5 py-1 rounded-full text-sm font-semibold ${
                     selectedCategory === 'all' ? 'bg-white/20' : 'bg-white text-slate-600'
                   }`}>
-                    {products.length}
+                    {totalProducts}
                   </span>
                 </button>
                 
@@ -304,14 +291,14 @@ const Products = () => {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500">Total Products</span>
-                    <span className="font-bold text-teal-600">{products.length}</span>
+                    <span className="font-bold text-teal-600">{totalProducts}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500">Categories</span>
                     <span className="font-bold text-cyan-600">{categories.length}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-500">In Stock</span>
+                    <span className="text-slate-500">In Stock (This Page)</span>
                     <span className="font-bold text-emerald-600">{products.filter(p => p.total_stock > 0).length}</span>
                   </div>
                 </div>
@@ -322,9 +309,9 @@ const Products = () => {
           {/* Products Grid */}
           <div className="flex-1">
             {/* Results Header */}
-            <div className="flex items-center justify-between mb-6 bg-white rounded-2xl p-4 shadow-soft border border-slate-100">
+            <div className="flex items-center justify-between mb-6 bg-white rounded-2xl p-4 shadow-soft border border-slate-100 transition-colors">
               <p className="text-slate-600">
-                Showing <span className="font-bold text-slate-800">{filteredProducts.length}</span> products
+                Showing <span className="font-bold text-slate-800">{filteredProducts.length}</span> of {totalProducts} products
                 {searchQuery && <span className="text-teal-600"> for "{searchQuery}"</span>}
               </p>
               <div className="flex items-center gap-2">
@@ -344,14 +331,16 @@ const Products = () => {
             </div>
 
             {loading ? (
-              <div className="flex justify-center items-center py-32">
-                <div className="text-center">
-                  <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
-                  <p className="text-slate-600 text-lg font-medium">Loading products...</p>
-                </div>
+              <div className={viewMode === 'grid' 
+                ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6' 
+                : 'space-y-4'
+              }>
+                {Array.from({ length: 9 }).map((_, index) => (
+                  <ProductSkeleton key={index} viewMode={viewMode} />
+                ))}
               </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-3xl shadow-soft border border-slate-100">
+              <div className="text-center py-20 bg-white rounded-3xl shadow-soft border border-slate-100 transition-colors">
                 <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <FiPackage className="text-slate-400" size={40} />
                 </div>
@@ -365,21 +354,50 @@ const Products = () => {
                 </button>
               </div>
             ) : (
-              <div className={viewMode === 'grid' 
-                ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6' 
-                : 'space-y-4'
-              }>
-                {filteredProducts.map((product, index) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    index={index}
-                    viewMode={viewMode}
-                    addingToCart={addingToCart[product.id]}
-                    onAddToCart={() => addToCart(product.id)}
-                  />
-                ))}
-              </div>
+              <>
+                <motion.div 
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className={viewMode === 'grid' 
+                    ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6' 
+                    : 'space-y-4'
+                  }
+                >
+                  {filteredProducts.map((product, index) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      index={index}
+                      viewMode={viewMode}
+                      addingToCart={addingToCart[product.id]}
+                      onAddToCart={() => addToCart(product.id)}
+                    />
+                  ))}
+                </motion.div>
+                
+                {totalPages > 1 && (
+                  <div className="flex justify-center items-center mt-12 gap-4">
+                    <button 
+                      disabled={currentPage === 1} 
+                      onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
+                      className="p-3 bg-white border border-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm text-teal-600"
+                    >
+                      <FiChevronLeft size={24} />
+                    </button>
+                    <span className="px-5 py-2.5 bg-teal-50 text-teal-700 rounded-xl font-bold border border-teal-100">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button 
+                      disabled={currentPage === totalPages} 
+                      onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 300, behavior: 'smooth' }); }}
+                      className="p-3 bg-white border border-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-50 transition-colors shadow-sm text-teal-600"
+                    >
+                      <FiChevronRight size={24} />
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -389,9 +407,14 @@ const Products = () => {
 };
 
 const ProductCard = ({ product, index, viewMode, addingToCart, onAddToCart }) => {
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+  };
+
   if (viewMode === 'list') {
     return (
-      <div className="group bg-white rounded-2xl shadow-soft hover:shadow-soft-xl transition-all duration-300 border border-slate-100 overflow-hidden flex">
+      <motion.div variants={itemVariants} className="group bg-white rounded-2xl shadow-soft hover:shadow-soft-xl transition-all duration-300 border border-slate-100 overflow-hidden flex">
         {/* Image */}
         <div className="relative w-48 h-48 flex-shrink-0 overflow-hidden bg-gradient-to-br from-teal-50 to-cyan-50">
           {product.image_url ? (
@@ -453,14 +476,14 @@ const ProductCard = ({ product, index, viewMode, addingToCart, onAddToCart }) =>
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div 
+    <motion.div 
+      variants={itemVariants}
       className="group bg-white rounded-2xl shadow-soft hover:shadow-soft-xl overflow-hidden transition-all duration-500 hover:-translate-y-2 border border-slate-100"
-      style={{ animationDelay: `${index * 50}ms` }}
     >
       {/* Image */}
       <div className="relative h-52 overflow-hidden bg-gradient-to-br from-teal-50 to-cyan-50">
@@ -555,7 +578,7 @@ const ProductCard = ({ product, index, viewMode, addingToCart, onAddToCart }) =>
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -580,6 +603,50 @@ const StockIndicator = ({ stock }) => {
       <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
       Out of Stock
     </span>
+  );
+};
+
+const ProductSkeleton = ({ viewMode }) => {
+  if (viewMode === 'list') {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden flex animate-pulse">
+        <div className="w-48 h-48 flex-shrink-0 skeleton" />
+        <div className="flex-1 p-5 flex flex-col justify-between">
+          <div>
+            <div className="w-24 h-6 rounded-full skeleton mb-3" />
+            <div className="w-3/4 h-6 skeleton mb-2" />
+            <div className="w-1/3 h-4 skeleton mb-4" />
+            <div className="w-2/3 h-4 skeleton mb-1" />
+            <div className="w-1/2 h-4 skeleton" />
+          </div>
+          <div className="flex justify-between items-end mt-4 pt-4 border-t border-slate-100">
+            <div>
+              <div className="w-20 h-8 skeleton mb-2" />
+              <div className="w-24 h-4 skeleton" />
+            </div>
+            <div className="w-24 h-10 rounded-xl skeleton" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden animate-pulse">
+      <div className="h-52 skeleton" />
+      <div className="p-5">
+        <div className="w-24 h-6 rounded-full skeleton mb-3" />
+        <div className="w-3/4 h-6 skeleton mb-2" />
+        <div className="w-1/3 h-4 skeleton mb-4" />
+        <div className="w-full h-4 skeleton mb-1" />
+        <div className="w-2/3 h-4 skeleton mb-4" />
+        <div className="w-24 h-4 skeleton mb-4" />
+        <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+          <div className="w-20 h-8 skeleton" />
+          <div className="w-24 h-10 rounded-xl skeleton" />
+        </div>
+      </div>
+    </div>
   );
 };
 

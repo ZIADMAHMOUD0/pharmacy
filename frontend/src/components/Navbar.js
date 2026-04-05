@@ -68,7 +68,7 @@ const Navbar = () => {
                 }`}>
                   Pharma<span className="text-teal-500">Care</span>
                 </span>
-                <p className={`text-xs font-medium ${isScrolled ? 'text-slate-400' : 'text-white/50'}`}>
+                <p className={`text-xs font-medium ${isScrolled ? 'text-slate-500' : 'text-white/50'}`}>
                   Your Health Partner
                 </p>
               </div>
@@ -115,6 +115,8 @@ const Navbar = () => {
                       </>
                     )}
                   </div>
+
+
 
                   {/* User Menu */}
                   <div className={`relative flex items-center space-x-3 border-l pl-4 ml-2 ${
@@ -178,11 +180,12 @@ const Navbar = () => {
                 </>
               ) : (
                 <div className="flex items-center space-x-3">
+
                   <Link
                     to="/login"
                     className={`px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 hover:scale-105 ${
                       isScrolled 
-                        ? 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-glow hover:shadow-glow-lg' 
+                        ? 'bg-gradient-to-r from-teal-600 to-cyan-600 text-white' 
                         : 'bg-white text-slate-800 hover:bg-slate-50'
                     }`}
                   >
@@ -288,6 +291,7 @@ const Navbar = () => {
                 
                 <div className={`pt-4 mt-4 border-t space-y-2 ${isScrolled ? 'border-slate-200' : 'border-white/10'}`}>
                   <MobileNavLink to="/profile" icon={<FiUser />} label="My Profile" isScrolled={isScrolled} />
+
                   <button
                     onClick={handleLogout}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${

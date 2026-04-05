@@ -131,7 +131,13 @@ export const categoryAPI = {
 };
 
 export const productAPI = {
-  getAll: () => api.get('/products/'),
+  getAll: () => api.get('/products/?paginate=false'),
+  getAllPaginated: (page = 1, category = 'all', search = '') => {
+    let url = `/products/?page=${page}`;
+    if (category && category !== 'all') url += `&category=${category}`;
+    if (search) url += `&q=${encodeURIComponent(search)}`;
+    return api.get(url);
+  },
   search: (query) => api.get(`/products/search/?q=${query}`),
   getOne: (id) => api.get(`/products/${id}/`),
   
@@ -225,7 +231,8 @@ export const cartAPI = {
 };
 
 export const orderAPI = {
-  getAll: () => api.get('/orders/'),
+  getAll: () => api.get('/orders/?paginate=false'),
+  getAllPaginated: (page = 1) => api.get(`/orders/?page=${page}`),
   getOne: (id) => api.get(`/orders/${id}/`),
   checkout: (data) => api.post('/orders/checkout/', data),
   approve: (id) => api.post(`/orders/${id}/approve/`),

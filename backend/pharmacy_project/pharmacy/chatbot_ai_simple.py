@@ -1,5 +1,5 @@
 # pharmacy/chatbot_ai_simple.py
-# AI Chatbot using OpenRouter API — with automatic model fallback
+# AI Chatbot using Google Gemini API
 
 import os
 import logging
@@ -7,25 +7,19 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# ── OpenRouter config ────────────────────────────────────────────────────────
-OPENROUTER_API_KEY = os.environ.get(
-    'OPENROUTER_API_KEY',
-    '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'
+# ── Gemini config ────────────────────────────────────────────────────────
+GEMINI_API_KEY = os.environ.get(
+    'GEMINI_API_KEY',
+    'AIzaSyDm2OvetdFDqvVgE2QoWEx0aErffzGcebA'
 )
-OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
 
 # Models tried in order until one succeeds.
-# Models marked no_system=True don't support system prompts (e.g. Gemma via Google AI Studio).
 MODELS = [
-    {"id": "google/gemini-2.0-flash-lite-001",          "no_system": False},
-    {"id": "google/gemini-flash-1.5-8b",                "no_system": False},
-    {"id": "meta-llama/llama-3.1-8b-instruct:free",     "no_system": False},
-    {"id": "meta-llama/llama-3.2-3b-instruct:free",     "no_system": False},
-    {"id": "mistralai/mistral-7b-instruct",             "no_system": False},
-    {"id": "google/gemma-3-12b-it:free",                "no_system": True},
-    {"id": "google/gemma-3-27b-it:free",                "no_system": True},
-    {"id": "nousresearch/hermes-3-llama-3.1-405b:free", "no_system": False},
-    {"id": "microsoft/phi-3-mini-128k-instruct:free",   "no_system": False},
+    {"id": "gemini-2.5-flash",          "no_system": False},
+    {"id": "gemini-2.0-flash",          "no_system": False},
+    {"id": "gemini-1.5-flash",          "no_system": False},
+    {"id": "gemini-1.5-pro",            "no_system": False},
 ]
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -39,16 +33,14 @@ SYSTEM_PROMPT = (
 RETRIABLE_CODES = {404, 429, 502, 503}
 
 
-class OpenRouterChatbot:
+class GeminiChatbot:
 
     def __init__(self):
         self.headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Authorization": f"Bearer {GEMINI_API_KEY}",
             "Content-Type":  "application/json",
-            "HTTP-Referer":  "https://pharmacy-app.local",
-            "X-Title":       "Pharmacy Assistant",
         }
-        logger.info("OpenRouter chatbot initialized.")
+        logger.info("Gemini chatbot initialized.")
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -65,7 +57,7 @@ class OpenRouterChatbot:
                 logger.info(f"Response from: {model['id']}")
                 return result
 
-        logger.error("All OpenRouter models failed — using built-in fallback.")
+        logger.error("All Gemini models failed — using built-in fallback.")
         return self._fallback(user_message, user_name)
 
     # ------------------------------------------------------------------
@@ -83,7 +75,7 @@ class OpenRouterChatbot:
                 ]
 
             response = requests.post(
-                OPENROUTER_URL,
+                GEMINI_URL,
                 headers=self.headers,
                 json={"model": model_id, "messages": messages,
                       "max_tokens": 200, "temperature": 0.7},
@@ -103,10 +95,9 @@ class OpenRouterChatbot:
                 logger.warning(f"[{model_id}] {response.status_code} — skipping.")
                 return None
 
-            # 400 with "Provider returned error" is also retriable
             if response.status_code == 400:
                 body = response.text
-                if "Provider returned error" in body or "not a valid model" in body:
+                if "Provider returned error" in body or "not a valid model" in body or "not found" in body.lower():
                     logger.warning(f"[{model_id}] 400 provider error — skipping.")
                     return None
                 logger.error(f"[{model_id}] 400: {body[:300]}")
@@ -155,5 +146,5 @@ _chatbot_instance = None
 def get_chatbot_instance():
     global _chatbot_instance
     if _chatbot_instance is None:
-        _chatbot_instance = OpenRouterChatbot()
+        _chatbot_instance = GeminiChatbot()
     return _chatbot_instance

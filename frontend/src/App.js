@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -379,9 +380,10 @@ const FeatureCard = ({ icon, title, description, gradient }) => (
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <div className="min-h-screen bg-slate-50">
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <div className="min-h-screen bg-slate-50 transition-colors duration-300">
           <Navbar />
           <Routes>
             <Route path="/" element={<Home />} />
@@ -417,6 +419,7 @@ function App() {
         </div>
       </AuthProvider>
     </BrowserRouter>
+  </ThemeProvider>
   );
 }
 

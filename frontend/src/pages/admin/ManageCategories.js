@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { categoryAPI } from '../../services/api';
 import { FiEdit, FiTrash2, FiPlus, FiGrid, FiSearch, FiX, FiPackage, FiTag } from 'react-icons/fi';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -17,7 +18,10 @@ const ManageCategories = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const toast = useToast();
 
-  useEffect(() => { fetchCategories(); }, []);
+  useEffect(() => { 
+    fetchCategories(); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchCategories = async () => {
     try {
@@ -207,12 +211,15 @@ const ManageCategories = () => {
                       <FiPackage size={16} />
                       <span className="text-sm">{category.product_count || 0} products</span>
                     </div>
-                    <button 
-                      onClick={() => openModal(category)}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      Edit →
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        to={`/admin/products?categoryId=${category.id}`}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
+                        title="View products in this category"
+                      >
+                        View Products
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>

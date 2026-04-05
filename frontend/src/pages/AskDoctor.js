@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { questionAPI } from '../services/api';
 import { FiSend, FiEdit2, FiTrash2, FiMessageCircle, FiClock, FiCheckCircle, FiX, FiHelpCircle, FiUser, FiImage, FiCamera } from 'react-icons/fi';
 import ConfirmModal from '../components/ConfirmModal';
@@ -33,22 +33,27 @@ const AskDoctor = () => {
   const [actionLoading, setActionLoading] = useState(false);
   
   const toast = useToast();
-
+  const toastRef = useRef(toast);
   useEffect(() => {
-    fetchQuestions();
-  }, []);
+    toastRef.current = toast;
+  }, [toast]);
 
-  const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
     try {
       setLoading(true);
       const response = await questionAPI.getAll();
       setQuestions(response.data);
     } catch (error) {
-      toast.error('Failed to load questions');
+      // Use ref to avoid changing dependencies causing re-renders
+      toastRef.current?.error('Failed to load questions');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [fetchQuestions]);
 
   // Handle image selection
   const handleImageSelect = (e) => {
@@ -204,11 +209,6 @@ const AskDoctor = () => {
 
   // Handle delete
   const handleDelete = (question) => {
-    if (question.is_answered) {
-      toast.warning('Cannot delete an answered question');
-      return;
-    }
-    
     setConfirmModal({
       isOpen: true,
       title: 'Delete Question',
@@ -431,9 +431,9 @@ const AskDoctor = () => {
                       </p>
                     </div>
                     
-                    {/* Edit/Delete buttons - Only show for unanswered questions */}
-                    {!q.is_answered && (
-                      <div className="flex gap-2">
+                    {/* Action buttons: Edit only for unanswered, Delete always (history cleanup) */}
+                    <div className="flex gap-2">
+                      {!q.is_answered && (
                         <button
                           onClick={() => openEditModal(q)}
                           className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-all"
@@ -441,15 +441,15 @@ const AskDoctor = () => {
                         >
                           <FiEdit2 size={18} />
                         </button>
-                        <button
-                          onClick={() => handleDelete(q)}
-                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
-                          title="Delete Question"
-                        >
-                          <FiTrash2 size={18} />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      <button
+                        onClick={() => handleDelete(q)}
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
+                        title="Delete Question"
+                      >
+                        <FiTrash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
