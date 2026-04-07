@@ -17,9 +17,10 @@ from django.http import StreamingHttpResponse
 import json
 from .chatbot_ai_simple import get_chatbot_instance
 
-from rest_framework.pagination import PageNumberPagination
 from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
+from django.views.decorators.cache import never_cache
+
+from rest_framework.pagination import PageNumberPagination
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,8 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@method_decorator(never_cache, name='list')
+@method_decorator(never_cache, name='retrieve')
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
@@ -169,9 +172,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return queryset
     pagination_class = OptionalPagination
     
-    @method_decorator(cache_page(60 * 5))
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+
     
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -399,6 +400,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
+@method_decorator(never_cache, name='list')
+@method_decorator(never_cache, name='retrieve')
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
@@ -410,6 +413,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
 
+@method_decorator(never_cache, name='list')
+@method_decorator(never_cache, name='retrieve')
 class ProductBatchViewSet(viewsets.ModelViewSet):
     queryset = ProductBatch.objects.all()
     serializer_class = ProductBatchSerializer
