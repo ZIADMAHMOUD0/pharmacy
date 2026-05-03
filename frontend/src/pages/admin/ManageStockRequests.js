@@ -77,11 +77,11 @@ const ManageStockRequests = () => {
 
   const getStatusColor = (status) => {
     const colors = {
-      pending: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-      approved: 'bg-green-100 text-green-700 border-green-300',
-      rejected: 'bg-red-100 text-red-700 border-red-300',
+      pending: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-300',
+      approved: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 border-green-300',
+      rejected: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300 border-red-300',
     };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    return colors[status] || 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200';
   };
 
   const getStatusIcon = (status) => {
@@ -105,7 +105,7 @@ const ManageStockRequests = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-800">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal isOpen={confirmModal.isOpen} onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })} onConfirm={confirmModal.onConfirm} title={confirmModal.title} message={confirmModal.message} type={confirmModal.type} confirmText={confirmModal.confirmText} loading={actionLoading} />
 
@@ -152,7 +152,7 @@ const ManageStockRequests = () => {
 
       <div className="container mx-auto px-6 py-8">
         {/* Filters and Search */}
-        <div className="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-4 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="flex gap-2 flex-wrap">
             {[
               { key: 'all', label: 'All', color: 'blue' },
@@ -169,7 +169,7 @@ const ManageStockRequests = () => {
                     : f.color === 'yellow' ? 'bg-yellow-500 text-white' 
                     : f.color === 'green' ? 'bg-green-600 text-white'
                     : 'bg-red-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200'
                 }`}
               >
                 <FiFilter size={14} /> {f.label}
@@ -177,13 +177,13 @@ const ManageStockRequests = () => {
             ))}
           </div>
           <div className="relative w-full md:w-64">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
             <input
               type="text"
               placeholder="Search requests..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -191,20 +191,20 @@ const ManageStockRequests = () => {
         {/* Requests List */}
         {loading ? (
           <div className="flex justify-center py-20">
-            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-500/30 border-t-blue-600 rounded-full animate-spin"></div>
           </div>
         ) : filteredRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <FiClipboard className="mx-auto mb-4 text-gray-300" size={64} />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Stock Requests</h3>
-            <p className="text-gray-400">No requests match your current filters</p>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-12 text-center">
+            <FiClipboard className="mx-auto mb-4 text-gray-300 dark:text-slate-600" size={64} />
+            <h3 className="text-xl font-semibold text-gray-600 dark:text-slate-300 mb-2">No Stock Requests</h3>
+            <p className="text-gray-400 dark:text-slate-500">No requests match your current filters</p>
           </div>
         ) : (
           <div className="grid gap-4">
             {filteredRequests.map((req, index) => (
               <div 
                 key={req.id} 
-                className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all animate-fade-in"
+                className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all animate-fade-in"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -212,16 +212,16 @@ const ManageStockRequests = () => {
                   <div className="flex-1">
                     <div className="flex items-start gap-4">
                       <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl flex items-center justify-center">
-                        <FiPackage className="text-blue-600" size={24} />
+                        <FiPackage className="text-blue-600 dark:text-blue-300" size={24} />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
-                          <h3 className="font-bold text-xl text-gray-800">{req.product_name}</h3>
+                          <h3 className="font-bold text-xl text-gray-800 dark:text-slate-100">{req.product_name}</h3>
                           <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(req.status)}`}>
                             {getStatusIcon(req.status)} {req.status.toUpperCase()}
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-2">
+                        <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-slate-400 mt-2">
                           <span className="flex items-center gap-1">
                             <FiUser size={14} /> {req.requested_by_name}
                           </span>
@@ -235,31 +235,31 @@ const ManageStockRequests = () => {
 
                   {/* Right: Quantity */}
                   <div className="text-center md:text-right">
-                    <p className="text-sm text-gray-500">Quantity Requested</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Quantity Requested</p>
                     <p className="text-4xl font-bold bg-gradient-to-r from-teal-500 to-cyan-500 bg-clip-text text-transparent">
                       {req.quantity}
                     </p>
-                    <p className="text-sm text-gray-500">units</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">units</p>
                   </div>
                 </div>
 
                 {/* Reason */}
-                <div className="mt-4 p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-gray-500 mb-1">Reason for Request:</p>
-                  <p className="text-gray-700">{req.reason || 'No reason provided'}</p>
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-slate-800 rounded-xl">
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Reason for Request:</p>
+                  <p className="text-gray-700 dark:text-slate-200">{req.reason || 'No reason provided'}</p>
                 </div>
 
                 {/* Batch Info (if provided) */}
                 {(req.batch_number || req.expiry_date) && (
                   <div className="mt-3 flex gap-4 text-sm">
                     {req.batch_number && (
-                      <span className="text-gray-500">
-                        Batch: <span className="font-mono text-gray-700">{req.batch_number}</span>
+                      <span className="text-gray-500 dark:text-slate-400">
+                        Batch: <span className="font-mono text-gray-700 dark:text-slate-200">{req.batch_number}</span>
                       </span>
                     )}
                     {req.expiry_date && (
-                      <span className="text-gray-500">
-                        Expiry: <span className="text-gray-700">{new Date(req.expiry_date).toLocaleDateString()}</span>
+                      <span className="text-gray-500 dark:text-slate-400">
+                        Expiry: <span className="text-gray-700 dark:text-slate-200">{new Date(req.expiry_date).toLocaleDateString()}</span>
                       </span>
                     )}
                   </div>

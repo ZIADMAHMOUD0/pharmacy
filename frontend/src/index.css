@@ -73,6 +73,17 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   line-height: 1.6;
+  /* Smooth color/background transition when toggling dark mode */
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Custom scrollbar — dark mode variant */
+html.dark ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #14b8a6, #06b6d4);
+  border-color: #0f172a;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -780,4 +791,19 @@ h1, h2, h3, h4, h5, h6 {
   height: 100%;
   background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
   pointer-events: none;
+}
+
+/* ========================================
+   STOREFRONT SECTION UTILITIES
+   ======================================== */
+
+.section-padding {
+  @apply py-16 md:py-24;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }

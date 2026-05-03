@@ -1,14 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { productAPI, stockRequestAPI, batchAPI } from '../../services/api';
+import React, { useState, useEffect, useMemo } from 'react';
+import { stockRequestAPI, batchAPI } from '../../services/api';
 import { FiAlertTriangle, FiPlus, FiPackage, FiClipboard, FiTrash2, FiX, FiCalendar, FiEye } from 'react-icons/fi';
 import ConfirmModal from '../../components/ConfirmModal';
 import ToastContainer from '../../components/ToastContainer';
 import { useToast } from '../../hooks/useToast';
+import { useFocusOnArrival } from '../../hooks/useFocusOnArrival';
+import { useProductsCache } from '../../contexts/ProductsCacheContext';
+import TableSkeleton from '../../components/skeletons/TableSkeleton';
 
 const StockManagement = () => {
-  const [products, setProducts] = useState([]);
-  const [lowStockProducts, setLowStockProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Shared SWR cache for products. Replaces the previous per-mount fetch and
+  // the separate /products/low-stock call (low-stock can be derived from the
+  // is_low_stock flag the API already returns on each product row).
+  const {
+    items: products,
+    loading: productsLoading,
+    refetch: refetchProducts,
+  } = useProductsCache();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showMyRequestsModal, setShowMyRequestsModal] = useState(false);
@@ -23,28 +31,65 @@ const StockManagement = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const toast = useToast();
 
-  useEffect(() => { fetchProducts(); fetchLowStock(); fetchMyRequests(); }, []);
+  // Keep the same loading semantics other code expects: skeleton only when
+  // there's nothing to show yet.
+  const loading = productsLoading && products.length === 0;
 
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const response = await productAPI.getAll();
-      setProducts(response.data);
-    } catch (error) {
-      toast.error('Failed to load products');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Low-stock list is now derived client-side from the cached products.
+  // No second network round-trip; recomputes only when the product list
+  // reference actually changes.
+  const lowStockProducts = useMemo(
+    () => products.filter((p) => p.is_low_stock),
+    [products]
+  );
 
-  const fetchLowStock = async () => {
-    try {
-      const response = await productAPI.getLowStock();
-      setLowStockProducts(response.data);
-    } catch (error) {
-      console.error('Error fetching low stock:', error);
-    }
-  };
+  // Two focus channels for the manager: ?focus=<product-id> for the inventory
+  // table (data-focus-id), and ?focusBatch=<batch-id> for the batch modal —
+  // separate data attribute so the two don't collide. The batch focus also
+  // auto-opens the modal so the highlighted row is reachable.
+  useFocusOnArrival('focus', !loading && products.length > 0);
+
+  // When ?focusBatch=<id> is in the URL, auto-open the batch modal for the
+  // product that owns the batch so the user actually sees the highlighted row.
+  // We do this before the highlight hook fires so the modal exists.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const focusBatch = params.get('focusBatch');
+    if (!focusBatch || products.length === 0 || showBatchModal) return;
+    // Find the product by walking each product's batches once.
+    (async () => {
+      for (const product of products) {
+        try {
+          const res = await batchAPI.getByProduct(product.id);
+          if ((res.data || []).some((b) => String(b.id) === String(focusBatch))) {
+            setSelectedProduct(product);
+            setSelectedProductBatches(res.data);
+            setShowBatchModal(true);
+            return;
+          }
+        } catch {
+          // skip silently — surface focus is best-effort
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products]);
+
+  // Once the modal is open and rows are rendered, the focus hook can target
+  // them via data-focus-batch-id.
+  useFocusOnArrival('focusBatch', showBatchModal && selectedProductBatches.length > 0, {
+    attr: 'data-focus-batch-id',
+  });
+
+  // Single mount-time effect: prime the products cache (no network if it's
+  // already warm thanks to the idle prefetch on app boot) and load the
+  // manager's own request list. The previous version made three independent
+  // round-trips on every visit.
+  useEffect(() => {
+    refetchProducts().catch(() => toast.error('Failed to load products'));
+    fetchMyRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchMyRequests = async () => {
     try {
@@ -158,14 +203,14 @@ const StockManagement = () => {
   };
 
   const getStatusColor = (status) => {
-    const colors = { pending: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700' };
-    return colors[status] || 'bg-gray-100 text-gray-700';
+    const colors = { pending: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300', approved: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300', rejected: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' };
+    return colors[status] || 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200';
   };
 
   const pendingRequestsCount = myRequests.filter(r => r.status === 'pending').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-800">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal isOpen={confirmModal.isOpen} onClose={closeConfirmModal} onConfirm={confirmModal.onConfirm} title={confirmModal.title} message={confirmModal.message} type={confirmModal.type} confirmText={confirmModal.confirmText} loading={actionLoading} />
 
@@ -178,7 +223,7 @@ const StockManagement = () => {
             <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">📊 Stock Management</h1>
             <p className="text-white/70">{products.length} products • {lowStockProducts.length} low stock</p>
           </div>
-          <button onClick={() => setShowMyRequestsModal(true)} className="relative px-6 py-3 bg-white text-blue-600 rounded-xl font-semibold hover:bg-blue-50 flex items-center gap-2 shadow-lg">
+          <button onClick={() => setShowMyRequestsModal(true)} className="relative px-6 py-3 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-300 rounded-xl font-semibold hover:bg-blue-50 flex items-center gap-2 shadow-lg">
             <FiClipboard /> My Requests
             {pendingRequestsCount > 0 && <span className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{pendingRequestsCount}</span>}
           </button>
@@ -188,43 +233,43 @@ const StockManagement = () => {
       <div className="container mx-auto px-6 py-8">
         {/* Low Stock Alert */}
         {lowStockProducts.length > 0 && (
-          <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
-            <FiAlertTriangle className="text-red-500" size={24} />
-            <div><p className="font-bold text-red-800">Low Stock Alert</p><p className="text-red-700 text-sm">{lowStockProducts.length} product(s) need restocking</p></div>
+          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-4 mb-6 flex items-center gap-3">
+            <FiAlertTriangle className="text-red-500 dark:text-red-400" size={24} />
+            <div><p className="font-bold text-red-800 dark:text-red-200">Low Stock Alert</p><p className="text-red-700 dark:text-red-300 text-sm">{lowStockProducts.length} product(s) need restocking</p></div>
           </div>
         )}
 
         {loading ? (
-          <div className="flex justify-center py-20"><div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div></div>
+          <TableSkeleton columns={6} rows={8} />
         ) : (
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg overflow-hidden">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-6 py-4 text-left font-semibold text-gray-600">Product</th>
-                  <th className="px-6 py-4 text-left font-semibold text-gray-600">Category</th>
-                  <th className="px-6 py-4 text-left font-semibold text-gray-600">Stock</th>
-                  <th className="px-6 py-4 text-left font-semibold text-gray-600">Batches</th>
-                  <th className="px-6 py-4 text-left font-semibold text-gray-600">Status</th>
-                  <th className="px-6 py-4 text-left font-semibold text-gray-600">Actions</th>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-600 dark:text-slate-300">Product</th>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-600 dark:text-slate-300">Category</th>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-600 dark:text-slate-300">Stock</th>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-600 dark:text-slate-300">Batches</th>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-600 dark:text-slate-300">Status</th>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-600 dark:text-slate-300">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {products.map((product, index) => (
-                  <tr key={product.id} className={`border-t hover:bg-gray-50 animate-fade-in ${product.is_low_stock ? 'bg-red-50' : ''}`} style={{ animationDelay: `${index * 0.03}s` }}>
-                    <td className="px-6 py-4 font-medium text-gray-800">{product.name}</td>
-                    <td className="px-6 py-4"><span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">{product.category_name || 'N/A'}</span></td>
-                    <td className="px-6 py-4"><span className={`font-bold text-xl ${product.is_low_stock ? 'text-red-600' : 'text-green-600'}`}>{product.total_stock || 0}</span></td>
+                  <tr key={product.id} data-focus-id={product.id} className={`border-t border-slate-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 animate-fade-in ${product.is_low_stock ? 'bg-red-50 dark:bg-red-500/10' : ''}`} style={{ animationDelay: `${index * 0.03}s` }}>
+                    <td className="px-6 py-4 font-medium text-gray-800 dark:text-slate-100">{product.name}</td>
+                    <td className="px-6 py-4"><span className="bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm">{product.category_name || 'N/A'}</span></td>
+                    <td className="px-6 py-4"><span className={`font-bold text-xl ${product.is_low_stock ? 'text-red-600 dark:text-red-300' : 'text-green-600 dark:text-green-300'}`}>{product.total_stock || 0}</span></td>
                     <td className="px-6 py-4">
-                      <button onClick={() => handleViewBatches(product)} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+                      <button onClick={() => handleViewBatches(product)} className="flex items-center gap-2 text-blue-600 dark:text-blue-300 hover:text-blue-800 font-medium">
                         <FiEye size={16} /> View Batches
                       </button>
                     </td>
                     <td className="px-6 py-4">
                       {product.is_low_stock ? (
-                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-semibold"><FiAlertTriangle size={14} /> Low Stock</span>
+                        <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300 px-3 py-1 rounded-full text-sm font-semibold"><FiAlertTriangle size={14} /> Low Stock</span>
                       ) : (
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">In Stock</span>
+                        <span className="bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 px-3 py-1 rounded-full text-sm font-semibold">In Stock</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -243,78 +288,79 @@ const StockManagement = () => {
       {/* View Batches Modal */}
       {showBatchModal && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800">{selectedProduct.name}</h2>
-                <p className="text-gray-500">Batch Details</p>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">{selectedProduct.name}</h2>
+                <p className="text-gray-500 dark:text-slate-400">Batch Details</p>
               </div>
               <button onClick={() => setShowBatchModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX size={24} /></button>
             </div>
 
             {/* Product Summary */}
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-xl mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 border border-blue-200 dark:border-blue-500/30">
               <div>
-                <p className="text-sm text-gray-600">Total Stock</p>
-                <p className="text-2xl font-bold text-blue-600">{selectedProduct.total_stock || 0}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-300">Total Stock</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{selectedProduct.total_stock || 0}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Threshold</p>
-                <p className="text-xl font-semibold text-gray-800">{selectedProduct.low_stock_threshold}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-300">Threshold</p>
+                <p className="text-xl font-semibold text-gray-800 dark:text-slate-100">{selectedProduct.low_stock_threshold}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Category</p>
-                <p className="font-semibold text-gray-800">{selectedProduct.category_name || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-300">Category</p>
+                <p className="font-semibold text-gray-800 dark:text-slate-100">{selectedProduct.category_name || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Price</p>
-                <p className="font-semibold text-gray-800">${selectedProduct.price}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-300">Price</p>
+                <p className="font-semibold text-gray-800 dark:text-slate-100">${selectedProduct.price}</p>
               </div>
             </div>
 
             {/* Batches List */}
             {selectedProductBatches.length === 0 ? (
               <div className="text-center py-12">
-                <FiPackage className="mx-auto mb-4 text-gray-300" size={48} />
-                <p className="text-gray-500 text-lg">No batches found for this product</p>
-                <p className="text-sm text-gray-400 mt-1">Request stock to create new batches</p>
+                <FiPackage className="mx-auto mb-4 text-gray-300 dark:text-slate-600" size={48} />
+                <p className="text-gray-500 dark:text-slate-400 text-lg">No batches found for this product</p>
+                <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">Request stock to create new batches</p>
               </div>
             ) : (
               <div className="space-y-4">
-                <h3 className="font-semibold text-gray-800">Available Batches ({selectedProductBatches.length})</h3>
+                <h3 className="font-semibold text-gray-800 dark:text-slate-100">Available Batches ({selectedProductBatches.length})</h3>
                 {selectedProductBatches.map((batch, index) => (
-                  <div 
-                    key={batch.id} 
+                  <div
+                    key={batch.id}
+                    data-focus-batch-id={batch.id}
                     className={`border rounded-xl p-4 transition-all ${
-                      isExpired(batch.expiry_date) ? 'bg-red-50 border-red-300' :
-                      isExpiringSoon(batch.expiry_date) ? 'bg-yellow-50 border-yellow-300' :
-                      'bg-white border-gray-200 hover:shadow-md'
+                      isExpired(batch.expiry_date) ? 'bg-red-50 dark:bg-red-500/10 border-red-300' :
+                      isExpiringSoon(batch.expiry_date) ? 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-300' :
+                      'bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700 hover:shadow-md'
                     }`}
                     style={{ animationDelay: `${index * 0.1}s` }}
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2">
-                        <FiPackage className="text-blue-600" size={20} />
+                        <FiPackage className="text-blue-600 dark:text-blue-300" size={20} />
                         <div>
-                          <h4 className="font-bold text-gray-800">Batch: {batch.batch_number}</h4>
-                          <p className="text-sm text-gray-500">Received: {new Date(batch.received_date).toLocaleDateString()}</p>
+                          <h4 className="font-bold text-gray-800 dark:text-slate-100">Batch: {batch.batch_number}</h4>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">Received: {new Date(batch.received_date).toLocaleDateString()}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-3xl font-bold text-blue-600">{batch.quantity}</p>
-                        <p className="text-xs text-gray-500">units</p>
+                        <p className="text-3xl font-bold text-blue-600 dark:text-blue-300">{batch.quantity}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">units</p>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <FiCalendar className="text-gray-400" />
+                        <FiCalendar className="text-gray-400 dark:text-slate-500" />
                         <div>
-                          <p className="text-xs text-gray-500">Expiry Date</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">Expiry Date</p>
                           <p className={`font-semibold ${
-                            isExpired(batch.expiry_date) ? 'text-red-600' :
-                            isExpiringSoon(batch.expiry_date) ? 'text-yellow-600' :
-                            'text-gray-800'
+                            isExpired(batch.expiry_date) ? 'text-red-600 dark:text-red-300' :
+                            isExpiringSoon(batch.expiry_date) ? 'text-yellow-600 dark:text-yellow-300' :
+                            'text-gray-800 dark:text-slate-100'
                           }`}>
                             {new Date(batch.expiry_date).toLocaleDateString()}
                           </p>
@@ -322,15 +368,15 @@ const StockManagement = () => {
                       </div>
 
                       {isExpired(batch.expiry_date) ? (
-                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-semibold">
+                        <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300 px-3 py-1 rounded-full text-sm font-semibold">
                           <FiAlertTriangle size={14} /> EXPIRED
                         </span>
                       ) : isExpiringSoon(batch.expiry_date) ? (
-                        <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-semibold">
+                        <span className="inline-flex items-center gap-1 bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 px-3 py-1 rounded-full text-sm font-semibold">
                           <FiAlertTriangle size={14} /> Expiring Soon
                         </span>
                       ) : (
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">Valid</span>
+                        <span className="bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 px-3 py-1 rounded-full text-sm font-semibold">Valid</span>
                       )}
                     </div>
                   </div>
@@ -346,7 +392,7 @@ const StockManagement = () => {
               >
                 <FiPlus /> Request More Stock
               </button>
-              <button onClick={() => setShowBatchModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200">
+              <button onClick={() => setShowBatchModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 rounded-xl font-semibold hover:bg-gray-200">
                 Close
               </button>
             </div>
@@ -357,14 +403,14 @@ const StockManagement = () => {
       {/* Request Stock Modal */}
       {showRequestModal && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Request Stock</h2>
               <button onClick={() => setShowRequestModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX size={20} /></button>
             </div>
-            <div className="bg-blue-50 p-4 rounded-xl mb-4">
+            <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-xl mb-4">
               <p className="font-semibold text-blue-800">{selectedProduct.name}</p>
-              <p className="text-sm text-blue-600">Current Stock: {selectedProduct.total_stock || 0}</p>
+              <p className="text-sm text-blue-600 dark:text-blue-300">Current Stock: {selectedProduct.total_stock || 0}</p>
             </div>
             <form onSubmit={handleSubmitRequest} className="space-y-4">
               {/* Quantity */}
@@ -383,8 +429,8 @@ const StockManagement = () => {
                     disabled={requestBatches.length === 0}
                     className={`p-3 rounded-xl border-2 font-medium transition-all flex items-center justify-center gap-2 ${
                       stockMode === 'existing' 
-                        ? 'border-teal-500 bg-teal-50 text-teal-700' 
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300' 
+                        : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:border-gray-300 dark:border-slate-600'
                     } ${requestBatches.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <FiPackage size={18} />
@@ -395,8 +441,8 @@ const StockManagement = () => {
                     onClick={() => setStockMode('new')}
                     className={`p-3 rounded-xl border-2 font-medium transition-all flex items-center justify-center gap-2 ${
                       stockMode === 'new' 
-                        ? 'border-teal-500 bg-teal-50 text-teal-700' 
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300' 
+                        : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:border-gray-300 dark:border-slate-600'
                     }`}
                   >
                     <FiPlus size={18} />
@@ -423,8 +469,8 @@ const StockManagement = () => {
                     ))}
                   </select>
                   {requestForm.existing_batch_id && (
-                    <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                      <p className="text-sm text-green-700">
+                    <div className="mt-2 p-3 bg-green-50 dark:bg-green-500/10 rounded-lg border border-green-200 dark:border-green-500/30">
+                      <p className="text-sm text-green-700 dark:text-green-300">
                         ✓ Stock will be added to the selected batch
                       </p>
                     </div>
@@ -444,7 +490,7 @@ const StockManagement = () => {
                       value={requestForm.batch_number} 
                       onChange={(e) => setRequestForm({...requestForm, batch_number: e.target.value})} 
                     />
-                    <p className="text-xs text-gray-500 mt-1">Auto-generated if left empty</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Auto-generated if left empty</p>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-1">Expected Expiry Date (Optional)</label>
@@ -454,7 +500,7 @@ const StockManagement = () => {
                       value={requestForm.expiry_date} 
                       onChange={(e) => setRequestForm({...requestForm, expiry_date: e.target.value})} 
                     />
-                    <p className="text-xs text-gray-500 mt-1">Defaults to 1 year from approval if not provided</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Defaults to 1 year from approval if not provided</p>
                   </div>
                 </div>
               )}
@@ -474,7 +520,7 @@ const StockManagement = () => {
 
               {/* Buttons */}
               <div className="flex gap-2 pt-2">
-                <button type="button" onClick={() => setShowRequestModal(false)} className="flex-1 py-3 bg-gray-100 rounded-xl font-semibold hover:bg-gray-200 transition-colors">
+                <button type="button" onClick={() => setShowRequestModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-slate-800 rounded-xl font-semibold hover:bg-gray-200 transition-colors">
                   Cancel
                 </button>
                 <button 
@@ -492,31 +538,31 @@ const StockManagement = () => {
       {/* My Requests Modal */}
       {showMyRequestsModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">My Stock Requests</h2>
               <button onClick={() => setShowMyRequestsModal(false)} className="p-2 hover:bg-gray-100 rounded-lg"><FiX size={20} /></button>
             </div>
             {myRequests.length === 0 ? (
-              <div className="text-center py-8 text-gray-500"><FiClipboard className="mx-auto mb-4 text-gray-300" size={48} /><p>No requests yet</p></div>
+              <div className="text-center py-8 text-gray-500 dark:text-slate-400"><FiClipboard className="mx-auto mb-4 text-gray-300 dark:text-slate-600" size={48} /><p>No requests yet</p></div>
             ) : (
               <div className="space-y-3">
                 {myRequests.map((request, i) => (
-                  <div key={request.id} className="bg-gray-50 p-4 rounded-xl" style={{ animationDelay: `${i * 0.05}s` }}>
+                  <div key={request.id} className="bg-gray-50 dark:bg-slate-800 p-4 rounded-xl" style={{ animationDelay: `${i * 0.05}s` }}>
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <h3 className="font-semibold">{request.product_name}</h3>
-                        <p className="text-sm text-gray-600">Qty: {request.quantity}</p>
+                        <p className="text-sm text-gray-600 dark:text-slate-300">Qty: {request.quantity}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(request.status)}`}>{request.status}</span>
                         {request.status === 'pending' && (
-                          <button onClick={() => handleDeleteRequest(request)} className="p-2 text-gray-400 hover:text-red-600 rounded-lg"><FiTrash2 size={16} /></button>
+                          <button onClick={() => handleDeleteRequest(request)} className="p-2 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:text-red-300 rounded-lg"><FiTrash2 size={16} /></button>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm text-gray-500">{request.reason}</p>
-                    <p className="text-xs text-gray-400 mt-1">{new Date(request.created_at).toLocaleDateString()}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">{request.reason}</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{new Date(request.created_at).toLocaleDateString()}</p>
                   </div>
                 ))}
               </div>

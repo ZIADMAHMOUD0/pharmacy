@@ -160,19 +160,19 @@ const Orders = () => {
 
   const getStatusConfig = (status) => {
     const configs = {
-      pending: { color: 'bg-amber-50 text-amber-700 border-amber-200', icon: <FiClock />, label: 'Pending', gradient: 'from-amber-500 to-orange-500' },
-      approved: { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <FiCheck />, label: 'Approved', gradient: 'from-emerald-500 to-teal-500' },
-      rejected: { color: 'bg-rose-50 text-rose-700 border-rose-200', icon: <FiX />, label: 'Rejected', gradient: 'from-rose-500 to-red-500' },
-      processing: { color: 'bg-cyan-50 text-cyan-700 border-cyan-200', icon: <FiPackage />, label: 'Processing', gradient: 'from-cyan-500 to-sky-500' },
-      shipped: { color: 'bg-violet-50 text-violet-700 border-violet-200', icon: <FiTruck />, label: 'Shipped', gradient: 'from-violet-500 to-purple-500' },
-      delivered: { color: 'bg-teal-50 text-teal-700 border-teal-200', icon: <FiCheck />, label: 'Delivered', gradient: 'from-teal-500 to-cyan-500' },
-      cancelled: { color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <FiX />, label: 'Cancelled', gradient: 'from-slate-500 to-slate-600' },
+      pending: { color: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30', icon: <FiClock />, label: 'Pending', gradient: 'from-amber-500 to-orange-500' },
+      approved: { color: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30', icon: <FiCheck />, label: 'Approved', gradient: 'from-emerald-500 to-teal-500' },
+      rejected: { color: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30', icon: <FiX />, label: 'Rejected', gradient: 'from-rose-500 to-red-500' },
+      processing: { color: 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-500/30', icon: <FiPackage />, label: 'Processing', gradient: 'from-cyan-500 to-sky-500' },
+      shipped: { color: 'bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-500/30', icon: <FiTruck />, label: 'Shipped', gradient: 'from-violet-500 to-purple-500' },
+      delivered: { color: 'bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-500/30', icon: <FiCheck />, label: 'Delivered', gradient: 'from-teal-500 to-cyan-500' },
+      cancelled: { color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700', icon: <FiX />, label: 'Cancelled', gradient: 'from-slate-500 to-slate-600' },
     };
     return configs[status] || configs.pending;
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal
         isOpen={confirmModal.isOpen}
@@ -209,16 +209,16 @@ const Orders = () => {
           <div className="flex justify-center items-center py-20">
             <div className="text-center">
               <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-slate-600 font-medium">Loading orders...</p>
+              <p className="text-slate-600 dark:text-slate-300 font-medium">Loading orders...</p>
             </div>
           </div>
         ) : orders.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-3xl shadow-soft border border-slate-100">
-            <div className="w-24 h-24 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <FiPackage className="text-slate-400" size={40} />
+          <div className="text-center py-20 bg-white dark:bg-slate-900 rounded-3xl shadow-soft border border-slate-100 dark:border-slate-800">
+            <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <FiPackage className="text-slate-400 dark:text-slate-500" size={40} />
             </div>
-            <h3 className="text-2xl font-display font-bold text-slate-800 mb-2">No orders yet</h3>
-            <p className="text-slate-500 mb-8">Your order history will appear here</p>
+            <h3 className="text-2xl font-display font-bold text-slate-800 dark:text-slate-100 mb-2">No orders yet</h3>
+            <p className="text-slate-500 dark:text-slate-400 mb-8">Your order history will appear here</p>
             <a 
               href="/products" 
               className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-glow transition-all"
@@ -233,19 +233,19 @@ const Orders = () => {
               return (
                 <div 
                   key={order.id} 
-                  className="bg-white rounded-2xl shadow-soft overflow-hidden hover:shadow-soft-xl transition-all duration-300 border border-slate-100 animate-fade-in-up"
+                  className="bg-white dark:bg-slate-900 rounded-2xl shadow-soft overflow-hidden hover:shadow-soft-xl transition-all duration-300 border border-slate-100 dark:border-slate-800 animate-fade-in-up"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
                   {/* Order Header */}
-                  <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-5 border-b border-slate-200">
+                  <div className="bg-slate-50 dark:bg-slate-800/60 px-6 py-5 border-b border-slate-200 dark:border-slate-700">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${statusConfig.gradient} flex items-center justify-center text-white shadow-lg`}>
                           {statusConfig.icon}
                         </div>
                         <div>
-                          <h3 className="font-display font-bold text-xl text-slate-800">Order #{order.id}</h3>
-                          <p className="text-slate-500 text-sm">
+                          <h3 className="font-display font-bold text-xl text-slate-800 dark:text-slate-100">Order #{order.id}</h3>
+                          <p className="text-slate-500 dark:text-slate-400 text-sm">
                             {new Date(order.created_at).toLocaleDateString('en-US', {
                               weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
                             })}
@@ -260,14 +260,14 @@ const Orders = () => {
                           <>
                             <button
                               onClick={() => setEditingOrder(editingOrder?.id === order.id ? null : order)}
-                              className={`p-2.5 rounded-xl transition-all ${editingOrder?.id === order.id ? 'bg-teal-100 text-teal-600' : 'text-slate-400 hover:bg-slate-100 hover:text-teal-600'}`}
+                              className={`p-2.5 rounded-xl transition-all ${editingOrder?.id === order.id ? 'bg-teal-100 dark:bg-teal-500/20 text-teal-600 dark:text-teal-300' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-teal-600 dark:hover:text-teal-300'}`}
                               title="Edit Order"
                             >
                               <FiEdit2 size={18} />
                             </button>
                             <button
                               onClick={() => handleCancelOrder(order.id)}
-                              className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
+                              className="p-2.5 text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-xl transition-all"
                               title="Cancel Order"
                             >
                               <FiX size={18} />
@@ -277,7 +277,7 @@ const Orders = () => {
                         {order.status !== 'pending' && (
                           <button
                             onClick={() => handleDeleteOrder(order)}
-                            className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                            className="p-2.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"
                             title="Delete from History"
                           >
                             <FiTrash2 size={18} />
@@ -290,59 +290,59 @@ const Orders = () => {
                   {/* Order Details */}
                   <div className="p-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                      <div className="bg-gradient-to-br from-teal-50 to-cyan-50 p-5 rounded-xl border border-teal-100">
-                        <p className="text-sm text-teal-600 font-medium mb-1">Total Amount</p>
-                        <p className="text-2xl font-display font-bold text-teal-700">${order.total_amount}</p>
+                      <div className="bg-teal-50 dark:bg-teal-500/10 p-5 rounded-xl border border-teal-100 dark:border-teal-500/30">
+                        <p className="text-sm text-teal-700 dark:text-teal-300 font-medium mb-1">Total Amount</p>
+                        <p className="text-2xl font-display font-bold text-teal-700 dark:text-teal-200">${order.total_amount}</p>
                       </div>
-                      <div className="bg-gradient-to-br from-violet-50 to-purple-50 p-5 rounded-xl border border-violet-100">
-                        <p className="text-sm text-violet-600 font-medium mb-1">Payment</p>
-                        <p className="text-lg font-semibold text-violet-700 capitalize flex items-center gap-2">
+                      <div className="bg-violet-50 dark:bg-violet-500/10 p-5 rounded-xl border border-violet-100 dark:border-violet-500/30">
+                        <p className="text-sm text-violet-700 dark:text-violet-300 font-medium mb-1">Payment</p>
+                        <p className="text-lg font-semibold text-violet-700 dark:text-violet-200 capitalize flex items-center gap-2">
                           {order.payment_method === 'cash' ? '💵' : '💳'} {order.payment_method}
                         </p>
                       </div>
-                      <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-5 rounded-xl border border-emerald-100">
-                        <p className="text-sm text-emerald-600 font-medium mb-1">Shipping</p>
-                        <p className="text-sm font-medium text-emerald-700 line-clamp-2">{order.shipping_address || 'No address provided'}</p>
+                      <div className="bg-emerald-50 dark:bg-emerald-500/10 p-5 rounded-xl border border-emerald-100 dark:border-emerald-500/30">
+                        <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium mb-1">Shipping</p>
+                        <p className="text-sm font-medium text-emerald-700 dark:text-emerald-200 line-clamp-2">{order.shipping_address || 'No address provided'}</p>
                       </div>
                     </div>
                     
                     {/* Order Items */}
                     {order.items && order.items.length > 0 && (
                       <div>
-                        <h4 className="font-display font-semibold text-slate-800 mb-4">Order Items ({order.items.length})</h4>
+                        <h4 className="font-display font-semibold text-slate-800 dark:text-slate-100 mb-4">Order Items ({order.items.length})</h4>
                         <div className="space-y-3">
                           {order.items.map(item => (
-                            <div key={item.id} className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div key={item.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
                               <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-xl flex items-center justify-center text-2xl">
+                                <div className="w-14 h-14 bg-teal-100 dark:bg-teal-500/20 rounded-xl flex items-center justify-center text-2xl">
                                   💊
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-slate-800">{item.product_name}</p>
-                                  <p className="text-sm text-slate-500">${item.price} × {item.quantity}</p>
+                                  <p className="font-semibold text-slate-800 dark:text-slate-100">{item.product_name}</p>
+                                  <p className="text-sm text-slate-500 dark:text-slate-400">${item.price} × {item.quantity}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-4">
-                                <p className="font-display font-bold text-lg text-teal-600">${(item.price * item.quantity).toFixed(2)}</p>
+                                <p className="font-display font-bold text-lg text-teal-600 dark:text-teal-300">${(item.price * item.quantity).toFixed(2)}</p>
                                 {order.status === 'pending' && editingOrder?.id === order.id && (
                                   <div className="flex items-center gap-2">
                                     <button
                                       onClick={() => handleUpdateQuantity(order.id, item.id, item.quantity, -1)}
                                       disabled={item.quantity <= 1}
-                                      className="w-8 h-8 bg-slate-200 hover:bg-slate-300 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                      className="w-8 h-8 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                     >
                                       -
                                     </button>
-                                    <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                                    <span className="w-8 text-center font-semibold text-slate-700 dark:text-slate-200">{item.quantity}</span>
                                     <button
                                       onClick={() => handleUpdateQuantity(order.id, item.id, item.quantity, 1)}
-                                      className="w-8 h-8 bg-slate-200 hover:bg-slate-300 rounded-lg flex items-center justify-center transition-colors"
+                                      className="w-8 h-8 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg flex items-center justify-center transition-colors"
                                     >
                                       +
                                     </button>
                                     <button
                                       onClick={() => handleRemoveItem(order.id, item.id, item.product_name)}
-                                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                      className="p-2 text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
                                     >
                                       <FiTrash2 size={16} />
                                     </button>
@@ -366,11 +366,11 @@ const Orders = () => {
                             <FiPlus /> Add Product
                           </button>
                         ) : (
-                          <div className="bg-teal-50 p-5 rounded-xl border border-teal-200 animate-fade-in">
-                            <p className="text-sm font-medium text-teal-700 mb-3">Add a product to this order</p>
+                          <div className="bg-teal-50 dark:bg-teal-500/15 p-5 rounded-xl border border-teal-200 animate-fade-in">
+                            <p className="text-sm font-medium text-teal-700 dark:text-teal-300 mb-3">Add a product to this order</p>
                             <div className="flex flex-wrap gap-3">
                               <select
-                                className="flex-1 min-w-[200px] p-3 border border-teal-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                className="flex-1 min-w-[200px] p-3 border border-teal-200 rounded-xl bg-white dark:bg-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                                 value={selectedProduct}
                                 onChange={(e) => setSelectedProduct(e.target.value)}
                               >
@@ -386,18 +386,18 @@ const Orders = () => {
                                 min="1"
                                 value={quantity}
                                 onChange={(e) => setQuantity(parseInt(e.target.value))}
-                                className="w-24 p-3 border border-teal-200 rounded-xl bg-white focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                                className="w-24 p-3 border border-teal-200 rounded-xl bg-white dark:bg-slate-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                                 placeholder="Qty"
                               />
                               <button 
-                                onClick={handleAddProduct} 
+                                onClick={handleAddProduct}
                                 className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
                               >
                                 Add
                               </button>
                               <button 
                                 onClick={() => setShowAddProduct(false)} 
-                                className="px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-300 transition-all"
+                                className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
                               >
                                 Cancel
                               </button>

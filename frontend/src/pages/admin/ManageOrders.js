@@ -4,6 +4,7 @@ import { FiCheck, FiX, FiPackage, FiSearch, FiFilter, FiUser, FiCalendar, FiMapP
 import ConfirmModal from '../../components/ConfirmModal';
 import ToastContainer from '../../components/ToastContainer';
 import { useToast } from '../../hooks/useToast';
+import { useFocusOnArrival } from '../../hooks/useFocusOnArrival';
 
 const ManageOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -15,6 +16,8 @@ const ManageOrders = () => {
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', type: 'info', onConfirm: () => {} });
   const [actionLoading, setActionLoading] = useState(false);
   const toast = useToast();
+
+  useFocusOnArrival('focus', !loading && orders.length > 0);
 
   useEffect(() => {
     fetchOrders();
@@ -85,13 +88,13 @@ const ManageOrders = () => {
 
   const getStatusConfig = (status) => {
     const configs = {
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', icon: '⏳' },
-      approved: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', icon: '✅' },
-      rejected: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', icon: '❌' },
-      processing: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300', icon: '🔄' },
-      shipped: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300', icon: '🚚' },
-      delivered: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', icon: '📦' },
-      cancelled: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', icon: '🚫' },
+      pending: { bg: 'bg-yellow-100', text: 'text-yellow-700 dark:text-yellow-300', border: 'border-yellow-300', icon: '⏳' },
+      approved: { bg: 'bg-green-100', text: 'text-green-700 dark:text-green-300', border: 'border-green-300', icon: '✅' },
+      rejected: { bg: 'bg-red-100', text: 'text-red-700 dark:text-red-300', border: 'border-red-300', icon: '❌' },
+      processing: { bg: 'bg-blue-100', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-300', icon: '🔄' },
+      shipped: { bg: 'bg-purple-100', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-300', icon: '🚚' },
+      delivered: { bg: 'bg-green-100', text: 'text-green-700 dark:text-green-300', border: 'border-green-300', icon: '📦' },
+      cancelled: { bg: 'bg-gray-100', text: 'text-gray-700 dark:text-slate-200', border: 'border-gray-300 dark:border-slate-600', icon: '🚫' },
     };
     return configs[status] || configs.pending;
   };
@@ -118,7 +121,7 @@ const ManageOrders = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-800">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal 
         isOpen={confirmModal.isOpen} 
@@ -178,7 +181,7 @@ const ManageOrders = () => {
 
       <div className="container mx-auto px-6 py-8">
         {/* Filters and Search */}
-        <div className="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-4 mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="flex gap-2 flex-wrap">
             {[
               { key: 'all', label: 'All', color: 'blue' },
@@ -195,7 +198,7 @@ const ManageOrders = () => {
                     : f.color === 'yellow' ? 'bg-yellow-500 text-white' 
                     : f.color === 'green' ? 'bg-green-600 text-white'
                     : 'bg-red-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200'
                 }`}
               >
                 <FiFilter size={14} /> {f.label}
@@ -203,13 +206,13 @@ const ManageOrders = () => {
             ))}
           </div>
           <div className="relative w-full md:w-64">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
             <input
               type="text"
               placeholder="Search orders..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -217,13 +220,13 @@ const ManageOrders = () => {
         {/* Orders List */}
         {loading ? (
           <div className="flex justify-center py-20">
-            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-500/30 border-t-blue-600 rounded-full animate-spin"></div>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <FiPackage className="mx-auto mb-4 text-gray-300" size={64} />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Orders Found</h3>
-            <p className="text-gray-400">No orders match your current filters</p>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-12 text-center">
+            <FiPackage className="mx-auto mb-4 text-gray-300 dark:text-slate-600" size={64} />
+            <h3 className="text-xl font-semibold text-gray-600 dark:text-slate-300 mb-2">No Orders Found</h3>
+            <p className="text-gray-400 dark:text-slate-500">No orders match your current filters</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -232,9 +235,10 @@ const ManageOrders = () => {
               const isExpanded = expandedOrder === order.id;
               
               return (
-                <div 
-                  key={order.id} 
-                  className="bg-white rounded-2xl shadow-lg overflow-hidden animate-fade-in"
+                <div
+                  key={order.id}
+                  data-focus-id={order.id}
+                  className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg overflow-hidden animate-fade-in"
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
                   {/* Order Header */}
@@ -242,17 +246,17 @@ const ManageOrders = () => {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       {/* Left Side */}
                       <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl flex items-center justify-center">
-                          <FiPackage className="text-blue-600" size={24} />
+                        <div className="w-14 h-14 bg-blue-100 dark:bg-blue-500/15 rounded-xl flex items-center justify-center">
+                          <FiPackage className="text-blue-600 dark:text-blue-300" size={24} />
                         </div>
                         <div>
                           <div className="flex items-center gap-3 mb-1">
-                            <h3 className="font-bold text-xl text-gray-800">Order #{order.id}</h3>
+                            <h3 className="font-bold text-xl text-gray-800 dark:text-slate-100">Order #{order.id}</h3>
                             <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}>
                               {statusConfig.icon} {order.status?.toUpperCase()}
                             </span>
                           </div>
-                          <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                          <div className="flex flex-wrap gap-4 text-sm text-gray-500 dark:text-slate-400">
                             <span className="flex items-center gap-1">
                               <FiUser size={14} /> {order.customer_name || 'Unknown'}
                             </span>
@@ -265,7 +269,7 @@ const ManageOrders = () => {
 
                       {/* Right Side - Total */}
                       <div className="text-center md:text-right">
-                        <p className="text-sm text-gray-500">Total Amount</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">Total Amount</p>
                         <p className="text-3xl font-bold bg-gradient-to-r from-teal-500 to-cyan-500 bg-clip-text text-transparent">
                           ${parseFloat(order.total_amount || 0).toFixed(2)}
                         </p>
@@ -273,17 +277,17 @@ const ManageOrders = () => {
                     </div>
 
                     {/* Quick Info */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-100">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <FiMapPin className="text-gray-400" />
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 border-gray-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-slate-300">
+                        <FiMapPin className="text-gray-400 dark:text-slate-500" />
                         <span className="text-sm truncate">{order.shipping_address || 'No address'}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <FiCreditCard className="text-gray-400" />
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-slate-300">
+                        <FiCreditCard className="text-gray-400 dark:text-slate-500" />
                         <span className="text-sm capitalize">{order.payment_method || 'Cash'}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <FiPackage className="text-gray-400" />
+                      <div className="flex items-center gap-2 text-gray-600 dark:text-slate-300">
+                        <FiPackage className="text-gray-400 dark:text-slate-500" />
                         <span className="text-sm">{order.items?.length || 0} item(s)</span>
                       </div>
                     </div>
@@ -291,7 +295,7 @@ const ManageOrders = () => {
                     {/* Expand/Collapse Button */}
                     <button 
                       onClick={() => toggleExpand(order.id)}
-                      className="mt-4 w-full py-2 text-blue-600 hover:bg-blue-50 rounded-lg flex items-center justify-center gap-2 transition-all"
+                      className="mt-4 w-full py-2 text-blue-600 dark:text-blue-300 hover:bg-blue-50 rounded-lg flex items-center justify-center gap-2 transition-all"
                     >
                       <FiEye size={16} />
                       {isExpanded ? 'Hide Details' : 'View Details'}
@@ -301,37 +305,37 @@ const ManageOrders = () => {
 
                   {/* Expanded Details */}
                   {isExpanded && (
-                    <div className="bg-gray-50 p-6 border-t border-gray-100">
+                    <div className="bg-gray-50 dark:bg-slate-800 p-6 border-t border-slate-200 dark:border-slate-700 border-gray-100 dark:border-slate-800">
                       {/* Items List */}
                       {order.items && order.items.length > 0 ? (
                         <div className="mb-4">
-                          <h4 className="font-semibold text-gray-700 mb-3">Order Items:</h4>
-                          <div className="bg-white rounded-xl overflow-hidden">
+                          <h4 className="font-semibold text-gray-700 dark:text-slate-200 mb-3">Order Items:</h4>
+                          <div className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden">
                             <table className="w-full">
-                              <thead className="bg-gray-100">
+                              <thead className="bg-gray-100 dark:bg-slate-800">
                                 <tr>
-                                  <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600">Product</th>
-                                  <th className="px-4 py-2 text-center text-sm font-semibold text-gray-600">Qty</th>
-                                  <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">Price</th>
-                                  <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600">Subtotal</th>
+                                  <th className="px-4 py-2 text-left text-sm font-semibold text-gray-600 dark:text-slate-300">Product</th>
+                                  <th className="px-4 py-2 text-center text-sm font-semibold text-gray-600 dark:text-slate-300">Qty</th>
+                                  <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600 dark:text-slate-300">Price</th>
+                                  <th className="px-4 py-2 text-right text-sm font-semibold text-gray-600 dark:text-slate-300">Subtotal</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {order.items.map(item => (
-                                  <tr key={item.id} className="border-t border-gray-100">
-                                    <td className="px-4 py-3 text-gray-800">{item.product_name}</td>
-                                    <td className="px-4 py-3 text-center text-gray-600">{item.quantity}</td>
-                                    <td className="px-4 py-3 text-right text-gray-600">${parseFloat(item.price || 0).toFixed(2)}</td>
-                                    <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                                  <tr key={item.id} className="border-t border-slate-200 dark:border-slate-700 border-gray-100 dark:border-slate-800">
+                                    <td className="px-4 py-3 text-gray-800 dark:text-slate-100">{item.product_name}</td>
+                                    <td className="px-4 py-3 text-center text-gray-600 dark:text-slate-300">{item.quantity}</td>
+                                    <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-300">${parseFloat(item.price || 0).toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-right font-semibold text-gray-800 dark:text-slate-100">
                                       ${(parseFloat(item.price || 0) * item.quantity).toFixed(2)}
                                     </td>
                                   </tr>
                                 ))}
                               </tbody>
-                              <tfoot className="bg-gray-50">
+                              <tfoot className="bg-gray-50 dark:bg-slate-800">
                                 <tr>
-                                  <td colSpan="3" className="px-4 py-3 text-right font-bold text-gray-700">Total:</td>
-                                  <td className="px-4 py-3 text-right font-bold text-blue-600">
+                                  <td colSpan="3" className="px-4 py-3 text-right font-bold text-gray-700 dark:text-slate-200">Total:</td>
+                                  <td className="px-4 py-3 text-right font-bold text-blue-600 dark:text-blue-300">
                                     ${parseFloat(order.total_amount || 0).toFixed(2)}
                                   </td>
                                 </tr>
@@ -340,14 +344,14 @@ const ManageOrders = () => {
                           </div>
                         </div>
                       ) : (
-                        <p className="text-gray-500 text-center py-4">No items in this order</p>
+                        <p className="text-gray-500 dark:text-slate-400 text-center py-4">No items in this order</p>
                       )}
 
                       {/* Notes */}
                       {order.notes && (
-                        <div className="bg-white rounded-xl p-4 mb-4">
-                          <h4 className="font-semibold text-gray-700 mb-2">Notes:</h4>
-                          <p className="text-gray-600">{order.notes}</p>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 mb-4">
+                          <h4 className="font-semibold text-gray-700 dark:text-slate-200 mb-2">Notes:</h4>
+                          <p className="text-gray-600 dark:text-slate-300">{order.notes}</p>
                         </div>
                       )}
                     </div>
@@ -355,7 +359,7 @@ const ManageOrders = () => {
 
                   {/* Action Buttons */}
                   {order.status === 'pending' && (
-                    <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+                    <div className="p-4 bg-gray-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 border-gray-100 dark:border-slate-800 flex gap-3">
                       <button
                         onClick={() => handleApprove(order)}
                         className="flex-1 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"

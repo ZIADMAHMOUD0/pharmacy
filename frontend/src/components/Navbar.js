@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { FiShoppingCart, FiUser, FiLogOut, FiHome, FiHeart, FiChevronDown } from 'react-icons/fi';
+import { useSearchPalette } from '../contexts/SearchContext';
+import { useCartCount } from '../hooks/useCartCount';
+import ThemeToggle from './ThemeToggle';
+import { FiShoppingCart, FiUser, FiLogOut, FiHome, FiHeart, FiChevronDown, FiSearch } from 'react-icons/fi';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -10,6 +14,14 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const cartCount = useCartCount(user?.role === 'customer');
+  const { openPalette } = useSearchPalette();
+  // Scroll progress (0 → 1) smoothed with a spring for the navbar progress bar.
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 24, mass: 0.2 });
+
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const shortcutLabel = isMac ? '⌘K' : 'Ctrl+K';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,11 +57,21 @@ const Navbar = () => {
 
   return (
     <>
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        isScrolled 
-          ? 'bg-white/80 backdrop-blur-xl shadow-soft border-b border-slate-100' 
+      <motion.nav
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        isScrolled
+          ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-soft border-b border-slate-100 dark:border-slate-800'
           : 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900'
       }`}>
+        {/* Scroll progress bar — sits at the very top of the navbar */}
+        <motion.div
+          aria-hidden
+          style={{ scaleX, transformOrigin: '0% 50%' }}
+          className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-teal-400 via-cyan-400 to-emerald-400 origin-left z-20"
+        />
         <div className="container mx-auto px-4 lg:px-6">
           <div className="flex justify-between items-center h-18 py-3">
             {/* Logo */}
@@ -64,26 +86,26 @@ const Navbar = () => {
               </div>
               <div>
                 <span className={`text-2xl font-display font-bold tracking-tight transition-colors ${
-                  isScrolled ? 'text-slate-800' : 'text-white'
+                  isScrolled ? 'text-slate-800 dark:text-slate-100' : 'text-white'
                 }`}>
                   Pharma<span className="text-teal-500">Care</span>
                 </span>
-                <p className={`text-xs font-medium ${isScrolled ? 'text-slate-500' : 'text-white/50'}`}>
+                <p className={`text-xs font-medium ${isScrolled ? 'text-slate-500 dark:text-slate-400' : 'text-white/50'}`}>
                   Your Health Partner
                 </p>
               </div>
             </Link>
             
             {/* Desktop Menu */}
-            <div className="hidden lg:flex items-center space-x-1">
+            <div className="hidden lg:flex items-center gap-1">
               {user ? (
                 <>
-                  <div className="flex items-center space-x-1 mr-2">
+                  <div className="flex items-center gap-0.5 mr-1">
                     {user.role === 'customer' && (
                       <>
                         <NavLink to="/" icon={<FiHome />} label="Home" isActive={isActive('/')} isScrolled={isScrolled} />
                         <NavLink to="/products" icon="🏪" label="Products" isActive={isActive('/products')} isScrolled={isScrolled} />
-                        <NavLink to="/cart" icon={<FiShoppingCart />} label="Cart" isActive={isActive('/cart')} isScrolled={isScrolled} />
+                        <NavLink to="/cart" icon={<FiShoppingCart />} label="Cart" isActive={isActive('/cart')} isScrolled={isScrolled} badge={cartCount} />
                         <NavLink to="/orders" icon="📦" label="Orders" isActive={isActive('/orders')} isScrolled={isScrolled} />
                         <NavLink to="/ask-doctor" icon="👨‍⚕️" label="Ask Doctor" isActive={isActive('/ask-doctor')} isScrolled={isScrolled} />
                         <NavLink to="/medical-history" icon={<FiHeart />} label="Health" isActive={isActive('/medical-history')} isScrolled={isScrolled} />
@@ -118,9 +140,33 @@ const Navbar = () => {
 
 
 
+                  {/* Search trigger (Ctrl+K) */}
+                  <button
+                    type="button"
+                    onClick={openPalette}
+                    aria-label={`Open search (${shortcutLabel})`}
+                    title={`Search (${shortcutLabel})`}
+                    className={`hidden md:inline-flex items-center gap-2 px-3 h-10 rounded-xl border transition-colors ${
+                      isScrolled
+                        ? 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400'
+                        : 'border-white/15 bg-white/5 hover:bg-white/10 text-white/70'
+                    }`}
+                  >
+                    <FiSearch size={16} />
+                    <span className="text-sm">Search</span>
+                    <kbd className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                      isScrolled
+                        ? 'border-slate-200 bg-white text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400'
+                        : 'border-white/20 bg-white/10 text-white/60'
+                    }`}>{shortcutLabel}</kbd>
+                  </button>
+
+                  {/* Theme Toggle */}
+                  <ThemeToggle isScrolled={isScrolled} className="ml-1" />
+
                   {/* User Menu */}
                   <div className={`relative flex items-center space-x-3 border-l pl-4 ml-2 ${
-                    isScrolled ? 'border-slate-200' : 'border-white/10'
+                    isScrolled ? 'border-slate-200 dark:border-slate-700' : 'border-white/10'
                   }`}>
                     <div 
                       className="relative cursor-pointer"
@@ -138,7 +184,7 @@ const Navbar = () => {
                           {(user.first_name || user.username || 'U')[0].toUpperCase()}
                         </div>
                         <div className="hidden xl:block text-left">
-                          <div className={`font-semibold text-sm ${isScrolled ? 'text-slate-800' : 'text-white'}`}>
+                          <div className={`font-semibold text-sm ${isScrolled ? 'text-slate-800 dark:text-slate-100' : 'text-white'}`}>
                             {user.first_name || user.username}
                           </div>
                           <div className={`text-xs px-2 py-0.5 rounded-full inline-block ${getRoleBadgeColor(user.role)}`}>
@@ -152,22 +198,22 @@ const Navbar = () => {
 
                       {/* Dropdown Menu */}
                       {userMenuOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-soft-xl border border-slate-100 overflow-hidden animate-fade-in-down">
-                          <div className="p-4 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100">
-                            <p className="font-semibold text-slate-800">{user.first_name || user.username}</p>
-                            <p className="text-sm text-slate-500">{user.email}</p>
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-soft-xl border border-slate-100 dark:border-slate-700 overflow-hidden animate-fade-in-down">
+                          <div className="p-4 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-800 border-b border-slate-100 dark:border-slate-700">
+                            <p className="font-semibold text-slate-800 dark:text-slate-100">{user.first_name || user.username}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
                           </div>
                           <div className="p-2">
                             <Link
                               to="/profile"
-                              className="flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
+                              className="flex items-center space-x-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                             >
                               <FiUser size={18} />
                               <span>My Profile</span>
                             </Link>
                             <button
                               onClick={handleLogout}
-                              className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-rose-600 hover:bg-rose-50 transition-colors"
+                              className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
                             >
                               <FiLogOut size={18} />
                               <span>Sign Out</span>
@@ -180,6 +226,25 @@ const Navbar = () => {
                 </>
               ) : (
                 <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={openPalette}
+                    aria-label={`Open search (${shortcutLabel})`}
+                    className={`hidden md:inline-flex items-center gap-2 px-3 h-10 rounded-xl border transition-colors ${
+                      isScrolled
+                        ? 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400'
+                        : 'border-white/15 bg-white/5 hover:bg-white/10 text-white/70'
+                    }`}
+                  >
+                    <FiSearch size={16} />
+                    <span className="text-sm">Search</span>
+                    <kbd className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                      isScrolled
+                        ? 'border-slate-200 bg-white text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400'
+                        : 'border-white/20 bg-white/10 text-white/60'
+                    }`}>{shortcutLabel}</kbd>
+                  </button>
+                  <ThemeToggle isScrolled={isScrolled} />
 
                   <Link
                     to="/login"
@@ -205,12 +270,25 @@ const Navbar = () => {
               )}
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* Mobile right cluster: search + theme toggle + hamburger */}
+            <div className="lg:hidden flex items-center gap-1">
+              <button
+                type="button"
+                onClick={openPalette}
+                aria-label="Open search"
+                className={`p-3 rounded-xl transition-colors ${
+                  isScrolled ? 'hover:bg-slate-100 text-slate-600 dark:hover:bg-slate-800 dark:text-slate-300' : 'hover:bg-white/10 text-white'
+                }`}
+              >
+                <FiSearch size={18} />
+              </button>
+              <ThemeToggle isScrolled={isScrolled} />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`lg:hidden p-3 rounded-xl transition-all ${
-                isScrolled ? 'hover:bg-slate-100 text-slate-600' : 'hover:bg-white/10 text-white'
+              className={`p-3 rounded-xl transition-all ${
+                isScrolled ? 'hover:bg-slate-100 text-slate-600 dark:hover:bg-slate-800 dark:text-slate-300' : 'hover:bg-white/10 text-white'
               }`}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             >
               <div className="relative w-6 h-5">
                 <span className={`absolute left-0 h-0.5 w-6 bg-current transform transition-all duration-300 ${
@@ -224,26 +302,34 @@ const Navbar = () => {
                 }`}></span>
               </div>
             </button>
+            </div>
           </div>
         </div>
 
         {/* Mobile Menu */}
-        <div className={`lg:hidden overflow-hidden transition-all duration-500 ${
-          mobileMenuOpen ? 'max-h-screen' : 'max-h-0'
-        }`}>
+        <AnimatePresence initial={false}>
+        {mobileMenuOpen && (
+        <motion.div
+          key="mobile-menu"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+          className="lg:hidden overflow-hidden"
+        >
           <div className={`px-4 py-6 border-t ${
-            isScrolled ? 'bg-white border-slate-100' : 'bg-slate-900/95 backdrop-blur-xl border-white/10'
+            isScrolled ? 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800' : 'bg-slate-900/95 backdrop-blur-xl border-white/10'
           }`}>
             {user ? (
               <div className="space-y-2">
                 {/* User info card */}
-                <div className={`p-4 rounded-2xl mb-4 ${isScrolled ? 'bg-slate-50' : 'bg-white/5'}`}>
+                <div className={`p-4 rounded-2xl mb-4 ${isScrolled ? 'bg-slate-50 dark:bg-slate-800' : 'bg-white/5'}`}>
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg">
                       {(user.first_name || user.username || 'U')[0].toUpperCase()}
                     </div>
                     <div>
-                      <p className={`font-semibold ${isScrolled ? 'text-slate-800' : 'text-white'}`}>
+                      <p className={`font-semibold ${isScrolled ? 'text-slate-800 dark:text-slate-100' : 'text-white'}`}>
                         {user.first_name || user.username}
                       </p>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${getRoleBadgeColor(user.role)}`}>
@@ -257,7 +343,7 @@ const Navbar = () => {
                   <>
                     <MobileNavLink to="/" icon={<FiHome />} label="Home" isScrolled={isScrolled} />
                     <MobileNavLink to="/products" icon="🏪" label="Products" isScrolled={isScrolled} />
-                    <MobileNavLink to="/cart" icon={<FiShoppingCart />} label="Cart" isScrolled={isScrolled} />
+                    <MobileNavLink to="/cart" icon={<FiShoppingCart />} label="Cart" isScrolled={isScrolled} badge={cartCount} />
                     <MobileNavLink to="/orders" icon="📦" label="Orders" isScrolled={isScrolled} />
                     <MobileNavLink to="/ask-doctor" icon="👨‍⚕️" label="Ask Doctor" isScrolled={isScrolled} />
                     <MobileNavLink to="/medical-history" icon={<FiHeart />} label="Medical History" isScrolled={isScrolled} />
@@ -295,7 +381,7 @@ const Navbar = () => {
                   <button
                     onClick={handleLogout}
                     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                      isScrolled ? 'text-rose-600 hover:bg-rose-50' : 'text-rose-400 hover:bg-white/5'
+                      isScrolled ? 'text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10' : 'text-rose-400 hover:bg-white/5'
                     }`}
                   >
                     <FiLogOut size={20} />
@@ -328,9 +414,11 @@ const Navbar = () => {
               </div>
             )}
           </div>
-        </div>
-      </nav>
-      
+        </motion.div>
+        )}
+        </AnimatePresence>
+      </motion.nav>
+
       {/* Spacer for fixed navbar */}
       <div className="h-18 py-3"></div>
 
@@ -353,21 +441,28 @@ const Navbar = () => {
   );
 };
 
-const NavLink = ({ to, icon, label, isActive, isScrolled }) => (
+const NavLink = ({ to, icon, label, isActive, isScrolled, badge }) => (
   <Link
     to={to}
-    className={`relative flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 group ${
+    className={`relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl whitespace-nowrap transition-all duration-300 group ${
       isActive
-        ? isScrolled 
-          ? 'bg-teal-50 text-teal-600' 
+        ? isScrolled
+          ? 'bg-teal-50 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300'
           : 'bg-white/15 text-white'
-        : isScrolled 
-          ? 'text-slate-600 hover:bg-slate-50 hover:text-teal-600' 
+        : isScrolled
+          ? 'text-slate-600 hover:bg-slate-50 hover:text-teal-600 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-teal-300'
           : 'text-white/70 hover:bg-white/10 hover:text-white'
     }`}
   >
-    <span className="text-lg">{icon}</span>
-    <span className="font-medium text-sm">{label}</span>
+    <span className="relative text-base">
+      {icon}
+      {badge > 0 && (
+        <span className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+    </span>
+    <span className="font-medium text-[13px]">{label}</span>
     {isActive && (
       <span className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${
         isScrolled ? 'bg-teal-500' : 'bg-white'
@@ -376,14 +471,21 @@ const NavLink = ({ to, icon, label, isActive, isScrolled }) => (
   </Link>
 );
 
-const MobileNavLink = ({ to, icon, label, isScrolled }) => (
+const MobileNavLink = ({ to, icon, label, isScrolled, badge }) => (
   <Link
     to={to}
     className={`flex items-center space-x-4 px-4 py-3.5 rounded-xl transition-all ${
-      isScrolled ? 'text-slate-700 hover:bg-slate-50' : 'text-white/90 hover:bg-white/5'
+      isScrolled ? 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800' : 'text-white/90 hover:bg-white/5'
     }`}
   >
-    <span className="text-xl w-8">{icon}</span>
+    <span className="relative text-xl w-8">
+      {icon}
+      {badge > 0 && (
+        <span className="absolute -top-1 left-5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+    </span>
     <span className="font-medium">{label}</span>
   </Link>
 );

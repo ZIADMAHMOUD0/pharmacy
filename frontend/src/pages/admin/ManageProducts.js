@@ -1,23 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import { useLocation } from 'react-router-dom';
-import { productAPI, categoryAPI } from '../../services/api';
-import { 
-  FiPackage, FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, 
-  FiAlertTriangle, FiImage, FiUpload, FiFilter 
+import { productAPI } from '../../services/api';
+import {
+  FiPackage, FiPlus, FiEdit2, FiTrash2, FiSearch, FiX,
+  FiAlertTriangle, FiImage, FiUpload, FiFilter
 } from 'react-icons/fi';
 import ConfirmModal from '../../components/ConfirmModal';
 import ToastContainer from '../../components/ToastContainer';
 import { useToast } from '../../hooks/useToast';
+import { useFocusOnArrival } from '../../hooks/useFocusOnArrival';
+import { useProductsCache } from '../../contexts/ProductsCacheContext';
+import { useCategoriesCache } from '../../contexts/CategoriesCacheContext';
+import CardGridSkeleton from '../../components/skeletons/CardGridSkeleton';
 
 const ManageProducts = () => {
   const location = useLocation();
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Shared SWR caches — products and categories are read by multiple admin
+  // pages, so the second visit is instant and the first visit is usually warm
+  // thanks to the idle prefetch the providers run on app boot.
+  const {
+    items: products,
+    loading: productsLoading,
+    refetch: refetchProducts,
+    invalidate: invalidateProducts,
+  } = useProductsCache();
+  const {
+    items: categories,
+    refetch: refetchCategories,
+  } = useCategoriesCache();
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  // Only show the skeleton when there's nothing to render yet — background
+  // revalidation must never replace cards with a spinner.
+  const loading = productsLoading && products.length === 0;
   
   // Image handling
   const [imagePreview, setImagePreview] = useState(null);
@@ -39,9 +56,12 @@ const ManageProducts = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const toast = useToast();
 
-  useEffect(() => { 
-    fetchProducts(); 
-    fetchCategories(); 
+  // Scroll-to + highlight when arriving from Ctrl+K with ?focus=<id>
+  useFocusOnArrival('focus', !loading && products.length > 0);
+
+  useEffect(() => {
+    refetchProducts().catch(() => toast.error('Failed to load products'));
+    refetchCategories().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -53,26 +73,14 @@ const ManageProducts = () => {
       setFilterCategory(categoryId);
     }
   }, [location.search]);
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const response = await productAPI.getAll();
-      setProducts(response.data);
-    } catch (error) {
-      toast.error('Failed to load products');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchCategories = async () => {
-    try {
-      const response = await categoryAPI.getAll();
-      setCategories(response.data);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
-  };
+  // After a write, force the next read to skip the cache and pick up the
+  // server-side change. We do not rely on optimistic updates here because
+  // the backend may also recompute fields like is_low_stock and total_stock.
+  const refreshProducts = useCallback(async () => {
+    invalidateProducts();
+    await refetchProducts();
+  }, [invalidateProducts, refetchProducts]);
 
   const closeConfirmModal = () => {
     setConfirmModal({ ...confirmModal, isOpen: false });
@@ -137,7 +145,7 @@ const ManageProducts = () => {
         toast.success('Product created successfully!');
       }
       closeModal();
-      fetchProducts();
+      refreshProducts();
     } catch (error) {
       toast.error(error.response?.data?.error || 'Error saving product');
     }
@@ -177,7 +185,7 @@ const ManageProducts = () => {
         try {
           await productAPI.delete(product.id);
           toast.success('Product deleted!');
-          fetchProducts();
+          refreshProducts();
         } catch (error) {
           toast.error('Error deleting product');
         } finally {
@@ -208,21 +216,41 @@ const ManageProducts = () => {
     resetForm();
   };
 
-  // Filter products
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.manufacturer?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !filterCategory || p.category === parseInt(filterCategory);
-    return matchesSearch && matchesCategory;
-  });
+  // Defer the search query so typing doesn't re-run filtering on every keystroke.
+  // The input stays responsive; the grid catches up on the next idle frame.
+  const deferredSearch = useDeferredValue(searchQuery);
 
-  // Stats
-  const totalProducts = products.length;
-  const lowStockProducts = products.filter(p => p.is_low_stock).length;
-  const outOfStock = products.filter(p => p.total_stock === 0).length;
+  const filteredProducts = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    const cat = filterCategory ? parseInt(filterCategory, 10) : null;
+    if (!q && cat == null) return products;
+    return products.filter((p) => {
+      const matchesSearch =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.manufacturer?.toLowerCase().includes(q);
+      const matchesCategory = cat == null || p.category === cat;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, deferredSearch, filterCategory]);
+
+  // Single pass over the products list to compute all three stats at once,
+  // memoized so it only recomputes when the products array reference changes.
+  const stats = useMemo(() => {
+    let low = 0;
+    let out = 0;
+    for (const p of products) {
+      if (p.is_low_stock) low += 1;
+      if (p.total_stock === 0) out += 1;
+    }
+    return { total: products.length, low, out };
+  }, [products]);
+  const totalProducts = stats.total;
+  const lowStockProducts = stats.low;
+  const outOfStock = stats.out;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal 
         isOpen={confirmModal.isOpen} 
@@ -254,7 +282,7 @@ const ManageProducts = () => {
             </div>
             <button 
               onClick={() => { resetForm(); setShowModal(true); }} 
-              className="px-6 py-3 bg-white text-teal-600 rounded-xl font-semibold hover:bg-teal-50 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+              className="px-6 py-3 bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-300 rounded-xl font-semibold hover:bg-teal-50 dark:bg-teal-500/15 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
             >
               <FiPlus /> Add Product
             </button>
@@ -280,36 +308,36 @@ const ManageProducts = () => {
 
       <div className="container mx-auto px-6 py-10">
         {categories.length === 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6 flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <FiAlertTriangle className="text-amber-600" size={24} />
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-5 mb-6 flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-100 dark:bg-amber-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <FiAlertTriangle className="text-amber-600 dark:text-amber-300" size={24} />
             </div>
             <div>
               <p className="font-semibold text-amber-800">Categories Required</p>
-              <p className="text-amber-700 text-sm">Please create categories first before adding products.</p>
+              <p className="text-amber-700 dark:text-amber-300 text-sm">Please create categories first before adding products.</p>
             </div>
           </div>
         )}
 
         {/* Search & Filter */}
-        <div className="bg-white rounded-2xl shadow-soft p-5 mb-6 border border-slate-100">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-soft p-5 mb-6 border border-slate-100 dark:border-slate-800">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
               <input 
                 type="text" 
                 placeholder="Search products by name or manufacturer..." 
-                className="w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                className="w-full pl-12 pr-4 py-3.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
               />
             </div>
             <div className="relative">
-              <FiFilter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <FiFilter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="pl-12 pr-8 py-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white appearance-none min-w-[200px]"
+                className="pl-12 pr-8 py-3.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white dark:bg-slate-900 appearance-none min-w-[200px]"
               >
                 <option value="">All Categories</option>
                 {categories.map(cat => (
@@ -322,30 +350,26 @@ const ManageProducts = () => {
 
         {/* Products Grid */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="text-center">
-              <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-slate-500 font-medium">Loading products...</p>
-            </div>
-          </div>
+          <CardGridSkeleton count={8} />
         ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-3xl shadow-soft border border-slate-100">
-            <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <FiPackage className="text-slate-400" size={40} />
+          <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-3xl shadow-soft border border-slate-100 dark:border-slate-800">
+            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FiPackage className="text-slate-400 dark:text-slate-500" size={40} />
             </div>
-            <p className="text-slate-600 font-medium mb-2">No products found</p>
-            <p className="text-slate-400 text-sm">Try adjusting your search or filter</p>
+            <p className="text-slate-600 dark:text-slate-300 font-medium mb-2">No products found</p>
+            <p className="text-slate-400 dark:text-slate-500 text-sm">Try adjusting your search or filter</p>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product, index) => (
-              <div 
-                key={product.id} 
-                className="bg-white rounded-2xl shadow-soft overflow-hidden hover:shadow-soft-xl transition-all duration-300 group border border-slate-100 animate-fade-in-up"
+              <div
+                key={product.id}
+                data-focus-id={product.id}
+                className="bg-white dark:bg-slate-900 rounded-2xl shadow-soft overflow-hidden hover:shadow-soft-xl transition-all duration-300 group border border-slate-100 dark:border-slate-800 animate-fade-in-up"
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 {/* Product Image */}
-                <div className="relative h-48 bg-gradient-to-br from-teal-50 to-cyan-50 flex items-center justify-center overflow-hidden">
+                <div className="relative h-48 bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
                   {product.image_url ? (
                     <img 
                       src={product.image_url} 
@@ -353,7 +377,7 @@ const ManageProducts = () => {
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="text-center text-slate-400">
+                    <div className="text-center text-slate-400 dark:text-slate-500">
                       <FiImage size={48} className="mx-auto mb-2" />
                       <p className="text-sm">No Image</p>
                     </div>
@@ -382,37 +406,37 @@ const ManageProducts = () => {
 
                 {/* Product Info */}
                 <div className="p-5">
-                  <h3 className="font-display font-bold text-lg text-slate-800 mb-2 line-clamp-1 group-hover:text-teal-600 transition-colors">{product.name}</h3>
+                  <h3 className="font-display font-bold text-lg text-slate-800 dark:text-slate-100 mb-2 line-clamp-1 group-hover:text-teal-600 dark:text-teal-300 transition-colors">{product.name}</h3>
                   {product.category_name && (
-                    <span className="inline-block bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-3">
+                    <span className="inline-block bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300 text-xs font-semibold px-3 py-1 rounded-full mb-3">
                       {product.category_name}
                     </span>
                   )}
-                  <p className="text-slate-500 text-sm mb-1">🏭 {product.manufacturer || 'Unknown'}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mb-1">🏭 {product.manufacturer || 'Unknown'}</p>
                   {product.active_ingredient && (
-                    <p className="text-teal-600 text-xs mb-3 flex items-center gap-1">
+                    <p className="text-teal-600 dark:text-teal-300 text-xs mb-3 flex items-center gap-1">
                       💊 <span className="font-medium">{product.active_ingredient}</span>
                     </p>
                   )}
                   
-                  <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                  <div className="flex justify-between items-center pt-4 border-t border-slate-200 dark:border-slate-700 border-slate-100 dark:border-slate-800">
                     <div>
-                      <p className="text-2xl font-display font-bold text-teal-600">${product.price}</p>
-                      <p className={`text-sm font-medium ${product.total_stock === 0 ? 'text-rose-500' : product.is_low_stock ? 'text-amber-600' : 'text-slate-500'}`}>
+                      <p className="text-2xl font-display font-bold text-teal-600 dark:text-teal-300">${product.price}</p>
+                      <p className={`text-sm font-medium ${product.total_stock === 0 ? 'text-rose-500 dark:text-rose-400' : product.is_low_stock ? 'text-amber-600 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'}`}>
                         Stock: {product.total_stock || 0}
                       </p>
                     </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEdit(product)}
-                        className="p-2.5 text-teal-600 hover:bg-teal-50 rounded-xl transition-colors"
+                        className="p-2.5 text-teal-600 dark:text-teal-300 hover:bg-teal-50 dark:bg-teal-500/15 rounded-xl transition-colors"
                         title="Edit"
                       >
                         <FiEdit2 size={18} />
                       </button>
                       <button
                         onClick={() => handleDelete(product)}
-                        className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                        className="p-2.5 text-rose-500 dark:text-rose-400 hover:bg-rose-50 rounded-xl transition-colors"
                         title="Delete"
                       >
                         <FiTrash2 size={18} />
@@ -429,24 +453,24 @@ const ManageProducts = () => {
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-8 w-full max-w-lg my-8 shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-100 animate-scale-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-lg my-8 shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-100 dark:border-slate-800 animate-scale-in">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-xl flex items-center justify-center">
                   <FiPackage className="text-white" size={24} />
                 </div>
-                <h2 className="text-2xl font-display font-bold text-slate-800">{editingProduct ? 'Edit Product' : 'Add Product'}</h2>
+                <h2 className="text-2xl font-display font-bold text-slate-800 dark:text-slate-100">{editingProduct ? 'Edit Product' : 'Add Product'}</h2>
               </div>
-              <button onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-                <FiX size={20} className="text-slate-400" />
+              <button onClick={closeModal} className="p-2 hover:bg-slate-100 dark:bg-slate-800 rounded-xl transition-colors">
+                <FiX size={20} className="text-slate-400 dark:text-slate-500" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Image Upload */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Product Image (Optional)</label>
-                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-5 text-center hover:border-teal-400 transition-colors">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Product Image (Optional)</label>
+                <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-5 text-center hover:border-teal-400 transition-colors">
                   {imagePreview ? (
                     <div className="relative inline-block">
                       <img 
@@ -467,11 +491,11 @@ const ManageProducts = () => {
                       className="cursor-pointer py-6"
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      <div className="w-14 h-14 bg-teal-50 rounded-xl flex items-center justify-center mx-auto mb-3">
-                        <FiUpload className="text-teal-600" size={24} />
+                      <div className="w-14 h-14 bg-teal-50 dark:bg-teal-500/15 rounded-xl flex items-center justify-center mx-auto mb-3">
+                        <FiUpload className="text-teal-600 dark:text-teal-300" size={24} />
                       </div>
-                      <p className="text-slate-600 font-medium">Click to upload image</p>
-                      <p className="text-slate-400 text-sm">PNG, JPG up to 5MB</p>
+                      <p className="text-slate-600 dark:text-slate-300 font-medium">Click to upload image</p>
+                      <p className="text-slate-400 dark:text-slate-500 text-sm">PNG, JPG up to 5MB</p>
                     </div>
                   )}
                   <input
@@ -486,10 +510,10 @@ const ManageProducts = () => {
 
               {/* Product Name */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Name *</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Name *</label>
                 <input 
                   type="text" 
-                  className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                  className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
                   value={formData.name} 
                   onChange={(e) => setFormData({...formData, name: e.target.value})} 
                   required 
@@ -498,9 +522,9 @@ const ManageProducts = () => {
 
               {/* Category */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Category *</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Category *</label>
                 <select 
-                  className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white" 
+                  className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white dark:bg-slate-900" 
                   value={formData.category} 
                   onChange={(e) => setFormData({...formData, category: e.target.value})} 
                   required
@@ -513,21 +537,21 @@ const ManageProducts = () => {
               {/* Price & Low Stock */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Price ($) *</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Price ($) *</label>
                   <input 
                     type="number" 
                     step="0.01" 
-                    className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                    className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
                     value={formData.price} 
                     onChange={(e) => setFormData({...formData, price: e.target.value})} 
                     required 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Low Stock Alert</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Low Stock Alert</label>
                   <input 
                     type="number" 
-                    className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                    className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
                     value={formData.low_stock_threshold} 
                     onChange={(e) => setFormData({...formData, low_stock_threshold: e.target.value})} 
                   />
@@ -536,10 +560,10 @@ const ManageProducts = () => {
 
               {/* Manufacturer */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Manufacturer</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Manufacturer</label>
                 <input 
                   type="text" 
-                  className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                  className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
                   value={formData.manufacturer} 
                   onChange={(e) => setFormData({...formData, manufacturer: e.target.value})} 
                 />
@@ -547,24 +571,24 @@ const ManageProducts = () => {
 
               {/* Active Ingredient */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Active Ingredient(s)</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Active Ingredient(s)</label>
                 <input 
                   type="text" 
-                  className="w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                  className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
                   placeholder="e.g., Paracetamol, Ibuprofen (separate with comma)"
                   value={formData.active_ingredient} 
                   onChange={(e) => setFormData({...formData, active_ingredient: e.target.value})} 
                 />
-                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1">
                   💊 Used to warn users with allergies to these ingredients
                 </p>
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Description</label>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Description</label>
                 <textarea 
-                  className="w-full p-4 border border-slate-200 rounded-xl resize-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                  className="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-xl resize-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
                   rows="3" 
                   value={formData.description} 
                   onChange={(e) => setFormData({...formData, description: e.target.value})} 
@@ -572,16 +596,16 @@ const ManageProducts = () => {
               </div>
 
               {/* Requires Prescription */}
-              <label className="flex items-center gap-3 cursor-pointer p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
+              <label className="flex items-center gap-3 cursor-pointer p-4 bg-slate-50 dark:bg-slate-800 rounded-xl hover:bg-slate-100 dark:bg-slate-800 transition-colors">
                 <input 
                   type="checkbox" 
                   checked={formData.requires_prescription} 
                   onChange={(e) => setFormData({...formData, requires_prescription: e.target.checked})} 
-                  className="w-5 h-5 rounded border-slate-300 text-teal-600 focus:ring-teal-500" 
+                  className="w-5 h-5 rounded border-slate-300 text-teal-600 dark:text-teal-300 focus:ring-teal-500" 
                 />
                 <div>
-                  <span className="font-semibold text-slate-700">Requires Prescription</span>
-                  <p className="text-xs text-slate-500">This product needs a valid prescription</p>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">Requires Prescription</span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">This product needs a valid prescription</p>
                 </div>
               </label>
 
@@ -590,7 +614,7 @@ const ManageProducts = () => {
                 <button 
                   type="button" 
                   onClick={closeModal} 
-                  className="flex-1 py-4 bg-slate-100 rounded-xl font-semibold hover:bg-slate-200 transition-colors text-slate-700"
+                  className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 rounded-xl font-semibold hover:bg-slate-200 transition-colors text-slate-700 dark:text-slate-200"
                 >
                   Cancel
                 </button>
@@ -604,8 +628,8 @@ const ManageProducts = () => {
             </form>
 
             {!editingProduct && (
-              <div className="mt-6 p-4 bg-teal-50 rounded-xl border border-teal-100">
-                <p className="text-sm text-teal-700 flex items-center gap-2">
+              <div className="mt-6 p-4 bg-teal-50 dark:bg-teal-500/15 rounded-xl border border-teal-100">
+                <p className="text-sm text-teal-700 dark:text-teal-300 flex items-center gap-2">
                   💡 <span>After creating the product, go to <strong>Manage Batches</strong> to add stock.</span>
                 </p>
               </div>

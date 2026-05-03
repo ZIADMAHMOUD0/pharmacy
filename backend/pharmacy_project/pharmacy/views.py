@@ -152,7 +152,15 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
-    
+
+    def get_permissions(self):
+        # Public read access for browsing the catalog (list + detail).
+        # Mutating actions and custom actions still require authentication —
+        # any non-list/retrieve view inherits IsAuthenticated.
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         from django.db.models import Q
         queryset = Product.objects.all()

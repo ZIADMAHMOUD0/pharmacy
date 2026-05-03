@@ -17,29 +17,29 @@ const ConfirmModal = ({
   const typeConfig = {
     warning: {
       icon: <FiAlertTriangle size={28} />,
-      iconBg: 'bg-amber-100',
-      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-100 dark:bg-amber-500/15',
+      iconColor: 'text-amber-600 dark:text-amber-300',
       confirmBg: 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600',
       confirmShadow: 'shadow-amber-500/30',
     },
     danger: {
       icon: <FiTrash2 size={28} />,
-      iconBg: 'bg-rose-100',
-      iconColor: 'text-rose-600',
+      iconBg: 'bg-rose-100 dark:bg-rose-500/15',
+      iconColor: 'text-rose-600 dark:text-rose-300',
       confirmBg: 'bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600',
       confirmShadow: 'shadow-rose-500/30',
     },
     info: {
       icon: <FiInfo size={28} />,
-      iconBg: 'bg-cyan-100',
-      iconColor: 'text-cyan-600',
+      iconBg: 'bg-cyan-100 dark:bg-cyan-500/15',
+      iconColor: 'text-cyan-600 dark:text-cyan-300',
       confirmBg: 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600',
       confirmShadow: 'shadow-cyan-500/30',
     },
     success: {
       icon: <FiCheck size={28} />,
-      iconBg: 'bg-emerald-100',
-      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-100 dark:bg-emerald-500/15',
+      iconColor: 'text-emerald-600 dark:text-emerald-300',
       confirmBg: 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600',
       confirmShadow: 'shadow-emerald-500/30',
     },
@@ -57,11 +57,11 @@ const ConfirmModal = ({
       
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
-        <div className="relative transform overflow-hidden rounded-3xl bg-white shadow-2xl transition-all w-full max-w-md animate-scale-in border border-slate-100">
+        <div className="relative transform overflow-hidden rounded-3xl bg-white dark:bg-slate-900 shadow-2xl transition-all w-full max-w-md animate-scale-in border border-slate-100 dark:border-slate-800">
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 rounded-lg transition-all"
           >
             <FiX size={20} />
           </button>
@@ -73,12 +73,12 @@ const ConfirmModal = ({
             </div>
 
             {/* Title */}
-            <h3 className="text-2xl font-display font-bold text-center text-slate-800 mb-3">
+            <h3 className="text-2xl font-display font-bold text-center text-slate-800 dark:text-slate-100 mb-3">
               {title}
             </h3>
 
             {/* Message */}
-            <p className="text-center text-slate-500 mb-8">
+            <p className="text-center text-slate-500 dark:text-slate-400 mb-8">
               {message}
             </p>
 
@@ -87,7 +87,7 @@ const ConfirmModal = ({
               <button
                 onClick={onClose}
                 disabled={loading}
-                className="flex-1 px-5 py-3.5 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 transition-all duration-200 disabled:opacity-50"
+                className="flex-1 px-5 py-3.5 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 rounded-xl font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
               >
                 {cancelText}
               </button>

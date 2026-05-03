@@ -235,7 +235,7 @@ const AskDoctor = () => {
   const answeredCount = questions.filter(q => q.is_answered).length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-800">
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <ConfirmModal 
         isOpen={confirmModal.isOpen} 
@@ -281,27 +281,27 @@ const AskDoctor = () => {
 
       <div className="container mx-auto px-6 py-8">
         {/* Submit Question Form */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <FiMessageCircle className="text-green-600" /> Submit a New Question
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-6 mb-8">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+            <FiMessageCircle className="text-green-600 dark:text-green-300" /> Submit a New Question
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Question Title *</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">Question Title *</label>
               <input
                 type="text"
                 placeholder="e.g., What are the side effects of Ibuprofen?"
-                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 value={newQuestion.title}
                 onChange={(e) => setNewQuestion({ ...newQuestion, title: e.target.value })}
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Your Question *</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">Your Question *</label>
               <textarea
                 placeholder="Describe your question in detail..."
-                className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                 rows="4"
                 value={newQuestion.question_text}
                 onChange={(e) => setNewQuestion({ ...newQuestion, question_text: e.target.value })}
@@ -311,10 +311,10 @@ const AskDoctor = () => {
             
             {/* Image Upload Section */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">
                 Attach Image (Optional)
               </label>
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
                 📷 You can attach a prescription, photo of symptoms, or any relevant image
               </p>
               
@@ -323,7 +323,7 @@ const AskDoctor = () => {
                   <img 
                     src={imagePreview} 
                     alt="Preview" 
-                    className="max-h-40 rounded-xl border border-gray-200 shadow-sm"
+                    className="max-h-40 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm"
                   />
                   <button
                     type="button"
@@ -336,11 +336,11 @@ const AskDoctor = () => {
               ) : (
                 <div 
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/50 transition-all"
+                  className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/50 transition-all"
                 >
-                  <FiCamera className="mx-auto text-gray-400 mb-2" size={32} />
-                  <p className="text-gray-500 text-sm">Click to upload an image</p>
-                  <p className="text-gray-400 text-xs mt-1">JPEG, PNG, WebP (max 5MB)</p>
+                  <FiCamera className="mx-auto text-gray-400 dark:text-slate-500 mb-2" size={32} />
+                  <p className="text-gray-500 dark:text-slate-400 text-sm">Click to upload an image</p>
+                  <p className="text-gray-400 dark:text-slate-500 text-xs mt-1">JPEG, PNG, WebP (max 5MB)</p>
                 </div>
               )}
               
@@ -373,24 +373,24 @@ const AskDoctor = () => {
         </div>
 
         {/* My Questions */}
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">My Questions</h2>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-4">My Questions</h2>
         
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+            <div className="w-12 h-12 border-4 border-green-200 dark:border-green-500/30 border-t-green-600 rounded-full animate-spin"></div>
           </div>
         ) : questions.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <FiHelpCircle className="mx-auto mb-4 text-gray-300" size={64} />
-            <h3 className="text-xl font-semibold text-gray-600 mb-2">No Questions Yet</h3>
-            <p className="text-gray-400">Submit your first question above!</p>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg p-12 text-center">
+            <FiHelpCircle className="mx-auto mb-4 text-gray-300 dark:text-slate-600" size={64} />
+            <h3 className="text-xl font-semibold text-gray-600 dark:text-slate-300 mb-2">No Questions Yet</h3>
+            <p className="text-gray-400 dark:text-slate-500">Submit your first question above!</p>
           </div>
         ) : (
           <div className="space-y-4">
             {questions.map((q, index) => (
               <div 
                 key={q.id} 
-                className="bg-white rounded-2xl shadow-lg overflow-hidden animate-fade-in"
+                className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg overflow-hidden animate-fade-in"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 {/* Question Header */}
@@ -398,35 +398,35 @@ const AskDoctor = () => {
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-bold text-xl text-gray-800">{q.title}</h3>
+                        <h3 className="font-bold text-xl text-gray-800 dark:text-slate-100">{q.title}</h3>
                         {q.is_answered ? (
-                          <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+                          <span className="inline-flex items-center gap-1 bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 px-3 py-1 rounded-full text-sm font-semibold">
                             <FiCheckCircle size={14} /> Answered
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-semibold">
+                          <span className="inline-flex items-center gap-1 bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 px-3 py-1 rounded-full text-sm font-semibold">
                             <FiClock size={14} /> Pending
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-600 mb-3">{q.question_text}</p>
+                      <p className="text-gray-600 dark:text-slate-300 mb-3">{q.question_text}</p>
                       
                       {/* Display attached image */}
                       {q.image_url && (
                         <div className="mb-3">
-                          <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                          <p className="text-sm text-gray-500 dark:text-slate-400 mb-2 flex items-center gap-1">
                             <FiImage size={14} /> Attached Image:
                           </p>
                           <img 
                             src={q.image_url} 
                             alt="Attached" 
-                            className="max-h-48 rounded-xl border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                            className="max-h-48 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => setViewingImage(q.image_url)}
                           />
                         </div>
                       )}
                       
-                      <p className="text-sm text-gray-400 flex items-center gap-1">
+                      <p className="text-sm text-gray-400 dark:text-slate-500 flex items-center gap-1">
                         <FiClock size={14} /> Asked on {new Date(q.created_at).toLocaleDateString()}
                       </p>
                     </div>
@@ -436,7 +436,7 @@ const AskDoctor = () => {
                       {!q.is_answered && (
                         <button
                           onClick={() => openEditModal(q)}
-                          className="p-2 text-teal-600 hover:bg-teal-100 rounded-lg transition-all"
+                          className="p-2 text-teal-600 dark:text-teal-300 hover:bg-teal-100 rounded-lg transition-all"
                           title="Edit Question"
                         >
                           <FiEdit2 size={18} />
@@ -444,7 +444,7 @@ const AskDoctor = () => {
                       )}
                       <button
                         onClick={() => handleDelete(q)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-all"
+                        className="p-2 text-red-600 dark:text-red-300 hover:bg-red-100 rounded-lg transition-all"
                         title="Delete Question"
                       >
                         <FiTrash2 size={18} />
@@ -455,17 +455,17 @@ const AskDoctor = () => {
 
                 {/* Answer Section */}
                 {q.is_answered && (
-                  <div className="bg-gradient-to-r from-green-50 to-teal-50 p-6 border-t border-green-100">
+                  <div className="bg-emerald-50 dark:bg-emerald-500/10 p-6 border-t border-emerald-100 dark:border-emerald-500/30">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white">
+                      <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center text-white">
                         <FiUser size={18} />
                       </div>
                       <div className="flex-1">
-                        <p className="font-semibold text-green-800 mb-1">
+                        <p className="font-semibold text-emerald-800 dark:text-emerald-200 mb-1">
                           Dr. {q.answered_by_name || 'Doctor'}
                         </p>
-                        <p className="text-gray-700 mb-2">{q.answer}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-gray-700 dark:text-slate-200 mb-2">{q.answer}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">
                           Answered on {new Date(q.answered_at).toLocaleDateString()}
                         </p>
                       </div>
@@ -481,9 +481,9 @@ const AskDoctor = () => {
       {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl animate-scale-in my-8">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-lg shadow-2xl animate-scale-in my-8">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">Edit Question</h2>
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">Edit Question</h2>
               <button 
                 onClick={() => { setShowEditModal(false); setEditingQuestion(null); setEditImage(null); setEditImagePreview(null); }} 
                 className="p-2 hover:bg-gray-100 rounded-lg"
@@ -494,19 +494,19 @@ const AskDoctor = () => {
             
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Question Title *</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">Question Title *</label>
                 <input
                   type="text"
-                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500"
+                  className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-green-500"
                   value={editForm.title}
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Your Question *</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">Your Question *</label>
                 <textarea
-                  className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 resize-none"
+                  className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-green-500 resize-none"
                   rows="4"
                   value={editForm.question_text}
                   onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
@@ -516,7 +516,7 @@ const AskDoctor = () => {
               
               {/* Edit Image Section */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">
                   Attached Image
                 </label>
                 
@@ -525,7 +525,7 @@ const AskDoctor = () => {
                     <img 
                       src={editImagePreview} 
                       alt="Preview" 
-                      className="max-h-40 rounded-xl border border-gray-200 shadow-sm"
+                      className="max-h-40 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm"
                     />
                     <button
                       type="button"
@@ -539,11 +539,11 @@ const AskDoctor = () => {
                 ) : (
                   <div 
                     onClick={() => editFileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/50 transition-all"
+                    className="border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-4 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/50 transition-all"
                   >
-                    <FiCamera className="mx-auto text-gray-400 mb-2" size={24} />
-                    <p className="text-gray-500 text-sm">Click to upload an image</p>
-                    <p className="text-gray-400 text-xs mt-1">JPEG, PNG, WebP (max 5MB)</p>
+                    <FiCamera className="mx-auto text-gray-400 dark:text-slate-500 mb-2" size={24} />
+                    <p className="text-gray-500 dark:text-slate-400 text-sm">Click to upload an image</p>
+                    <p className="text-gray-400 dark:text-slate-500 text-xs mt-1">JPEG, PNG, WebP (max 5MB)</p>
                   </div>
                 )}
                 
@@ -559,7 +559,7 @@ const AskDoctor = () => {
                   <button
                     type="button"
                     onClick={() => editFileInputRef.current?.click()}
-                    className="mt-2 text-sm text-teal-600 hover:text-teal-700 flex items-center gap-1"
+                    className="mt-2 text-sm text-teal-600 dark:text-teal-300 hover:text-teal-700 dark:text-teal-300 flex items-center gap-1"
                   >
                     <FiCamera size={14} /> Change image
                   </button>
@@ -570,7 +570,7 @@ const AskDoctor = () => {
                 <button 
                   type="button" 
                   onClick={() => { setShowEditModal(false); setEditingQuestion(null); setEditImage(null); setEditImagePreview(null); }} 
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200"
+                  className="flex-1 py-3 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 rounded-xl font-semibold hover:bg-gray-200"
                 >
                   Cancel
                 </button>
@@ -594,7 +594,7 @@ const AskDoctor = () => {
           onClick={() => setViewingImage(null)}
         >
           <button 
-            className="absolute top-4 right-4 text-white hover:text-gray-300 p-2"
+            className="absolute top-4 right-4 text-white hover:text-gray-300 dark:text-slate-600 p-2"
             onClick={() => setViewingImage(null)}
           >
             <FiX size={32} />
