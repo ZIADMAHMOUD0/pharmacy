@@ -21,7 +21,14 @@ const ManageBatches = () => {
     refetch: refetchBatches,
     invalidate: invalidateBatches,
   } = useBatchesCache();
-  const { items: products } = useProductsCache();
+  // Pulling `invalidate` from the products cache so we can flag it dirty
+  // whenever a batch is created, edited, or deleted — those operations change
+  // the parent product's `total_stock` (e.g. extending an expiry date can
+  // turn a previously expired-and-therefore-zero-stock product back into one
+  // with available stock). Without this, the customer storefront and the
+  // admin product list would keep showing the pre-mutation stock value
+  // until their cache aged out 60s later.
+  const { items: products, invalidate: invalidateProducts } = useProductsCache();
 
   const [showModal, setShowModal] = useState(false);
   const [editingBatch, setEditingBatch] = useState(null);
@@ -46,11 +53,17 @@ const ManageBatches = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // After a write, force the next read to skip the cache.
+  // After a batch write, force the next read to skip the cache. Editing,
+  // creating, or deleting a batch also changes the parent product's
+  // total_stock (in particular, extending or shortening an expiry date can
+  // flip the product between in-stock and out-of-stock), so we invalidate
+  // the products cache too. Other consumers (customer storefront, admin
+  // ManageProducts) will pick up fresh data on their next read.
   const refreshBatches = useCallback(async () => {
     invalidateBatches();
+    invalidateProducts();
     await refetchBatches();
-  }, [invalidateBatches, refetchBatches]);
+  }, [invalidateBatches, invalidateProducts, refetchBatches]);
 
   // Legacy alias kept so the rest of the component (handlers below) can stay
   // unchanged.

@@ -126,7 +126,52 @@ class ProductModelTest(TestCase):
             expiry_date=date.today() + timedelta(days=180)
         )
         self.assertEqual(product.total_stock, 80)
-    
+
+    def test_product_total_stock_excludes_expired_batches(self):
+        """An expired batch must not count toward purchasable stock, even if
+        its quantity row is still > 0. The expired row is preserved for audit
+        history but the storefront must show the product as out of stock if no
+        non-expired batches remain."""
+        product = Product.objects.create(
+            name='Amoxicillin',
+            description='Antibiotic',
+            price=Decimal('14.50'),
+            category=self.category,
+            manufacturer='MedCorp',
+        )
+        # Expired yesterday — must be ignored
+        ProductBatch.objects.create(
+            product=product,
+            batch_number='OLD001',
+            quantity=100,
+            expiry_date=date.today() - timedelta(days=1),
+        )
+        # Future-dated — counts
+        ProductBatch.objects.create(
+            product=product,
+            batch_number='NEW001',
+            quantity=25,
+            expiry_date=date.today() + timedelta(days=30),
+        )
+        self.assertEqual(product.total_stock, 25)
+
+        # If only the expired batch remains, total_stock collapses to 0
+        # so the storefront renders the product as out of stock.
+        product_only_expired = Product.objects.create(
+            name='Cephalexin',
+            description='Antibiotic',
+            price=Decimal('11.00'),
+            category=self.category,
+            manufacturer='MedCorp',
+        )
+        ProductBatch.objects.create(
+            product=product_only_expired,
+            batch_number='EXP001',
+            quantity=50,
+            expiry_date=date.today() - timedelta(days=10),
+        )
+        self.assertEqual(product_only_expired.total_stock, 0)
+
     def test_product_is_low_stock(self):
         """Test low stock detection"""
         product = Product.objects.create(

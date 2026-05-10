@@ -56,12 +56,23 @@ class Product(models.Model):
     
     @property
     def total_stock(self):
-        return sum(batch.quantity for batch in self.batches.all())
-    
+        # Only non-expired batches count as available stock. An expired batch
+        # may still have quantity > 0 in the database (we keep the row for
+        # audit/history) but it must not be sold or shown as purchasable.
+        # Iterate over `self.batches.all()` (in-memory if prefetched, one
+        # query otherwise) and filter in Python so this stays compatible
+        # with both paths.
+        from django.utils import timezone
+        today = timezone.now().date()
+        return sum(
+            batch.quantity for batch in self.batches.all()
+            if batch.expiry_date >= today
+        )
+
     @property
     def is_low_stock(self):
         return self.total_stock <= self.low_stock_threshold
-    
+
     @property
     def stock_quantity(self):
         # For backward compatibility

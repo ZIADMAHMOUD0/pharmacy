@@ -4,6 +4,8 @@ import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useSearchPalette } from '../contexts/SearchContext';
 import { useCartCount } from '../hooks/useCartCount';
+import { usePendingCount } from '../hooks/usePendingCount';
+import { orderAPI, stockRequestAPI } from '../services/api';
 import ThemeToggle from './ThemeToggle';
 import { FiShoppingCart, FiUser, FiLogOut, FiHome, FiHeart, FiChevronDown, FiSearch } from 'react-icons/fi';
 
@@ -15,6 +17,20 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const cartCount = useCartCount(user?.role === 'customer');
+  // Pending-order badges. Same hook is reused for both the customer's own
+  // pending orders and the admin's view of *all* pending orders — the
+  // backend already scopes orderAPI.getAll() per role, so the count is
+  // automatically correct for each viewer.
+  const pendingOrdersCount = usePendingCount(
+    orderAPI.getAll,
+    user?.role === 'customer' || user?.role === 'admin'
+  );
+  // Pending stock requests (admin only — managers see their own list inside
+  // the Stock Management page rather than as a navbar badge).
+  const pendingRequestsCount = usePendingCount(
+    stockRequestAPI.getAll,
+    user?.role === 'admin'
+  );
   const { openPalette } = useSearchPalette();
   // Scroll progress (0 → 1) smoothed with a spring for the navbar progress bar.
   const { scrollYProgress } = useScroll();
@@ -106,7 +122,7 @@ const Navbar = () => {
                         <NavLink to="/" icon={<FiHome />} label="Home" isActive={isActive('/')} isScrolled={isScrolled} />
                         <NavLink to="/products" icon="🏪" label="Products" isActive={isActive('/products')} isScrolled={isScrolled} />
                         <NavLink to="/cart" icon={<FiShoppingCart />} label="Cart" isActive={isActive('/cart')} isScrolled={isScrolled} badge={cartCount} />
-                        <NavLink to="/orders" icon="📦" label="Orders" isActive={isActive('/orders')} isScrolled={isScrolled} />
+                        <NavLink to="/orders" icon="📦" label="Orders" isActive={isActive('/orders')} isScrolled={isScrolled} badge={pendingOrdersCount} />
                         <NavLink to="/ask-doctor" icon="👨‍⚕️" label="Ask Doctor" isActive={isActive('/ask-doctor')} isScrolled={isScrolled} />
                         <NavLink to="/medical-history" icon={<FiHeart />} label="Health" isActive={isActive('/medical-history')} isScrolled={isScrolled} />
                         <NavLink to="/chatbot" icon="🤖" label="AI Chat" isActive={isActive('/chatbot')} isScrolled={isScrolled} />
@@ -119,8 +135,8 @@ const Navbar = () => {
                         <NavLink to="/admin/categories" icon="📑" label="Categories" isActive={isActive('/admin/categories')} isScrolled={isScrolled} />
                         <NavLink to="/admin/products" icon="💊" label="Products" isActive={isActive('/admin/products')} isScrolled={isScrolled} />
                         <NavLink to="/admin/batches" icon="📦" label="Batches" isActive={isActive('/admin/batches')} isScrolled={isScrolled} />
-                        <NavLink to="/admin/orders" icon="🛒" label="Orders" isActive={isActive('/admin/orders')} isScrolled={isScrolled} />
-                        <NavLink to="/admin/stock-requests" icon="📋" label="Requests" isActive={isActive('/admin/stock-requests')} isScrolled={isScrolled} />
+                        <NavLink to="/admin/orders" icon="🛒" label="Orders" isActive={isActive('/admin/orders')} isScrolled={isScrolled} badge={pendingOrdersCount} />
+                        <NavLink to="/admin/stock-requests" icon="📋" label="Requests" isActive={isActive('/admin/stock-requests')} isScrolled={isScrolled} badge={pendingRequestsCount} />
                       </>
                     )}
                     {user.role === 'store_manager' && (
@@ -344,7 +360,7 @@ const Navbar = () => {
                     <MobileNavLink to="/" icon={<FiHome />} label="Home" isScrolled={isScrolled} />
                     <MobileNavLink to="/products" icon="🏪" label="Products" isScrolled={isScrolled} />
                     <MobileNavLink to="/cart" icon={<FiShoppingCart />} label="Cart" isScrolled={isScrolled} badge={cartCount} />
-                    <MobileNavLink to="/orders" icon="📦" label="Orders" isScrolled={isScrolled} />
+                    <MobileNavLink to="/orders" icon="📦" label="Orders" isScrolled={isScrolled} badge={pendingOrdersCount} />
                     <MobileNavLink to="/ask-doctor" icon="👨‍⚕️" label="Ask Doctor" isScrolled={isScrolled} />
                     <MobileNavLink to="/medical-history" icon={<FiHeart />} label="Medical History" isScrolled={isScrolled} />
                     <MobileNavLink to="/chatbot" icon="🤖" label="AI Chat Assistant" isScrolled={isScrolled} />
@@ -357,8 +373,8 @@ const Navbar = () => {
                     <MobileNavLink to="/admin/categories" icon="📑" label="Categories" isScrolled={isScrolled} />
                     <MobileNavLink to="/admin/products" icon="💊" label="Products" isScrolled={isScrolled} />
                     <MobileNavLink to="/admin/batches" icon="📦" label="Batches" isScrolled={isScrolled} />
-                    <MobileNavLink to="/admin/orders" icon="🛒" label="Orders" isScrolled={isScrolled} />
-                    <MobileNavLink to="/admin/stock-requests" icon="📋" label="Stock Requests" isScrolled={isScrolled} />
+                    <MobileNavLink to="/admin/orders" icon="🛒" label="Orders" isScrolled={isScrolled} badge={pendingOrdersCount} />
+                    <MobileNavLink to="/admin/stock-requests" icon="📋" label="Stock Requests" isScrolled={isScrolled} badge={pendingRequestsCount} />
                   </>
                 )}
                 {user.role === 'store_manager' && (

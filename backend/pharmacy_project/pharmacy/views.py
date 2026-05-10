@@ -298,13 +298,21 @@ class OrderViewSet(viewsets.ModelViewSet):
             if product.total_stock < quantity:
                 return Response({'error': f'Insufficient stock'}, status=status.HTTP_400_BAD_REQUEST)
             
-            for batch in product.batches.filter(quantity__gt=0).order_by('expiry_date'):
+            # FEFO over *non-expired* batches only. An expired batch must never
+            # be linked to a new order line, even if it still has quantity in
+            # the database — those rows are kept for audit history.
+            from django.utils import timezone
+            today = timezone.now().date()
+            available_batches = product.batches.filter(
+                quantity__gt=0, expiry_date__gte=today
+            ).order_by('expiry_date')
+            for batch in available_batches:
                 if quantity <= 0:
                     break
                 qty = min(batch.quantity, quantity)
                 batch.quantity -= qty
                 batch.save()
-                
+
                 item, created = OrderItem.objects.get_or_create(
                     order=order, product=product, batch=batch,
                     defaults={'quantity': qty, 'price': product.price}
@@ -389,9 +397,16 @@ class OrderViewSet(viewsets.ModelViewSet):
             notes=request.data.get('notes', '')
         )
         
+        from django.utils import timezone
+        today = timezone.now().date()
         for item in cart_items:
             remaining = item.quantity
-            for batch in item.product.batches.filter(quantity__gt=0).order_by('expiry_date'):
+            # FEFO over non-expired batches only. Expired batches are excluded
+            # so the customer never receives medicine past its expiry date.
+            available_batches = item.product.batches.filter(
+                quantity__gt=0, expiry_date__gte=today
+            ).order_by('expiry_date')
+            for batch in available_batches:
                 if remaining <= 0:
                     break
                 qty = min(batch.quantity, remaining)
