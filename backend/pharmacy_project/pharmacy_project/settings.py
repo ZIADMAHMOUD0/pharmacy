@@ -15,6 +15,7 @@ from pathlib import Path
 
 # Try to import decouple, fallback to os.environ if not available
 try:
+    # pyrefly: ignore [missing-import]
     from decouple import config
 except ImportError:
     # Fallback if python-decouple is not installed
@@ -41,7 +42,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
 # Set AI Model
-os.environ['OPENROUTER_API_KEY'] = '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'
+os.environ['OPENROUTER_API_KEY'] = 'AIzaSyA1orHNBEgjpiUXYrOglixP0gs-nj97xsw'
 os.environ['OPENROUTER_MODEL'] = 'any-other/model:free'
 # Application definition
 
