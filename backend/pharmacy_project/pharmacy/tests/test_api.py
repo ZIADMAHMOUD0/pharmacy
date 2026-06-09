@@ -151,12 +151,16 @@ class ProductAPITest(APITestCase):
         self.client.force_authenticate(user=self.customer)
         response = self.client.get('/api/products/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-    
+        # Product list is paginated: {count, next, previous, results}
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(len(response.data['results']), 1)
+
     def test_list_products_unauthenticated(self):
         """Test listing products (unauthenticated)"""
+        # The product catalog is intentionally public so visitors can browse
+        # before logging in; list/retrieve use AllowAny.
         response = self.client.get('/api/products/')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
     
     def test_create_product_admin(self):
         """Test creating product as admin"""
@@ -339,7 +343,9 @@ class OrderAPITest(APITestCase):
         )
         response = self.client.get('/api/orders/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        # Orders are paginated: {count, next, previous, results}
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(len(response.data['results']), 1)
     
     def test_approve_order(self):
         """Test admin approving order"""

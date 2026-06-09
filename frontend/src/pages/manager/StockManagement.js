@@ -35,13 +35,37 @@ const StockManagement = () => {
   // there's nothing to show yet.
   const loading = productsLoading && products.length === 0;
 
-  // Low-stock list is now derived client-side from the cached products.
-  // No second network round-trip; recomputes only when the product list
-  // reference actually changes.
-  const lowStockProducts = useMemo(
-    () => products.filter((p) => p.is_low_stock),
-    [products]
-  );
+  // Mutually-exclusive low / out partitions derived in a single pass. The
+  // backend's `is_low_stock` is True whenever `total_stock <= threshold`
+  // (including zero), so we must explicitly split the zero-stock products
+  // out of the low-stock bucket to avoid double counting them.
+  const { lowStockProducts, outOfStockProducts } = useMemo(() => {
+    const low = [];
+    const out = [];
+    for (const p of products) {
+      if (p.total_stock === 0) out.push(p);
+      else if (p.is_low_stock) low.push(p);
+    }
+    return { lowStockProducts: low, outOfStockProducts: out };
+  }, [products]);
+
+  // 'all' | 'low' | 'out' — drives the filter chip row + table body.
+  const [stockFilter, setStockFilter] = useState('all');
+
+  // Resolve the rows the table actually renders. Memoised so it only
+  // recomputes when the filter or the source arrays change.
+  const filteredProducts = useMemo(() => {
+    if (stockFilter === 'low') return lowStockProducts;
+    if (stockFilter === 'out') return outOfStockProducts;
+    return products;
+  }, [stockFilter, products, lowStockProducts, outOfStockProducts]);
+
+  // Reset the filter whenever the products list reference changes (cache
+  // refetch after a write). Without this, a refresh that empties the bucket
+  // the user was filtering on would leave the table stranded with no rows.
+  useEffect(() => {
+    setStockFilter('all');
+  }, [products]);
 
   // Two focus channels for the manager: ?focus=<product-id> for the inventory
   // table (data-focus-id), and ?focusBatch=<batch-id> for the batch modal —
@@ -221,7 +245,13 @@ const StockManagement = () => {
         <div className="relative z-10 container mx-auto px-6 flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">📊 Stock Management</h1>
-            <p className="text-white/70">{products.length} products • {lowStockProducts.length} low stock</p>
+            <p className="text-white/70">
+              {products.length} products
+              {' · '}
+              {lowStockProducts.length} low stock
+              {' · '}
+              {outOfStockProducts.length} out of stock
+            </p>
           </div>
           <button onClick={() => setShowMyRequestsModal(true)} className="relative px-6 py-3 bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-300 rounded-xl font-semibold hover:bg-blue-50 flex items-center gap-2 shadow-lg">
             <FiClipboard /> My Requests
@@ -231,13 +261,63 @@ const StockManagement = () => {
       </section>
 
       <div className="container mx-auto px-6 py-8">
-        {/* Low Stock Alert */}
+        {/* Low Stock Alert — products that still have stock but are below threshold */}
         {lowStockProducts.length > 0 && (
-          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl p-4 mb-6 flex items-center gap-3">
-            <FiAlertTriangle className="text-red-500 dark:text-red-400" size={24} />
-            <div><p className="font-bold text-red-800 dark:text-red-200">Low Stock Alert</p><p className="text-red-700 dark:text-red-300 text-sm">{lowStockProducts.length} product(s) need restocking</p></div>
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4 mb-4 flex items-center gap-3">
+            <FiAlertTriangle className="text-amber-500 dark:text-amber-400" size={24} />
+            <div>
+              <p className="font-bold text-amber-800 dark:text-amber-200">Low Stock Alert</p>
+              <p className="text-amber-700 dark:text-amber-300 text-sm">
+                {lowStockProducts.length} product(s) need restocking soon
+              </p>
+            </div>
           </div>
         )}
+
+        {/* Out of Stock Alert — products with total_stock === 0. Separate
+            banner so the manager can act on the more urgent case first. */}
+        {outOfStockProducts.length > 0 && (
+          <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-2xl p-4 mb-6 flex items-center gap-3">
+            <FiAlertTriangle className="text-rose-500 dark:text-rose-400" size={24} />
+            <div>
+              <p className="font-bold text-rose-800 dark:text-rose-200">Out of Stock</p>
+              <p className="text-rose-700 dark:text-rose-300 text-sm">
+                {outOfStockProducts.length} product(s) have no remaining stock
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Filter chips — All / Low Stock / Out of Stock with live counts.
+            Clicking the active chip resets to All. */}
+        <div className="flex items-center gap-2 mb-6 flex-wrap">
+          <span className="text-sm text-slate-500 dark:text-slate-400 mr-1">Filter:</span>
+          {[
+            { key: 'all', label: 'All', count: products.length, activeClass: 'bg-teal-500 text-white border-teal-500 dark:bg-teal-500 dark:border-teal-500', idleClass: 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800' },
+            { key: 'low', label: 'Low Stock', count: lowStockProducts.length, activeClass: 'bg-amber-500 text-white border-amber-500', idleClass: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/25' },
+            { key: 'out', label: 'Out of Stock', count: outOfStockProducts.length, activeClass: 'bg-rose-500 text-white border-rose-500', idleClass: 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-100 dark:hover:bg-rose-500/25' },
+          ].map((chip) => {
+            const isActive = stockFilter === chip.key;
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => setStockFilter(isActive && chip.key !== 'all' ? 'all' : chip.key)}
+                aria-pressed={isActive}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                  isActive ? chip.activeClass : chip.idleClass
+                }`}
+              >
+                {chip.label}
+                <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold ${
+                  isActive ? 'bg-white/25' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+                }`}>
+                  {chip.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
         {loading ? (
           <TableSkeleton columns={6} rows={8} />
@@ -255,19 +335,43 @@ const StockManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {products.map((product, index) => (
-                  <tr key={product.id} data-focus-id={product.id} className={`border-t border-slate-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 animate-fade-in ${product.is_low_stock ? 'bg-red-50 dark:bg-red-500/10' : ''}`} style={{ animationDelay: `${index * 0.03}s` }}>
+                {filteredProducts.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
+                      No products match this filter.
+                    </td>
+                  </tr>
+                )}
+                {filteredProducts.map((product, index) => {
+                  const isOutOfStock = product.total_stock === 0;
+                  // is_low_stock is True for zero-stock rows too — exclude
+                  // those so the row tint and badge match the partitions.
+                  const isLowStock = product.is_low_stock && !isOutOfStock;
+                  const rowTint = isOutOfStock
+                    ? 'bg-rose-50 dark:bg-rose-500/10'
+                    : isLowStock
+                    ? 'bg-amber-50 dark:bg-amber-500/10'
+                    : '';
+                  const stockColor = isOutOfStock
+                    ? 'text-rose-600 dark:text-rose-300'
+                    : isLowStock
+                    ? 'text-amber-600 dark:text-amber-300'
+                    : 'text-green-600 dark:text-green-300';
+                  return (
+                  <tr key={product.id} data-focus-id={product.id} className={`border-t border-slate-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 animate-fade-in ${rowTint}`} style={{ animationDelay: `${index * 0.03}s` }}>
                     <td className="px-6 py-4 font-medium text-gray-800 dark:text-slate-100">{product.name}</td>
                     <td className="px-6 py-4"><span className="bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm">{product.category_name || 'N/A'}</span></td>
-                    <td className="px-6 py-4"><span className={`font-bold text-xl ${product.is_low_stock ? 'text-red-600 dark:text-red-300' : 'text-green-600 dark:text-green-300'}`}>{product.total_stock || 0}</span></td>
+                    <td className="px-6 py-4"><span className={`font-bold text-xl ${stockColor}`}>{product.total_stock || 0}</span></td>
                     <td className="px-6 py-4">
                       <button onClick={() => handleViewBatches(product)} className="flex items-center gap-2 text-blue-600 dark:text-blue-300 hover:text-blue-800 font-medium">
                         <FiEye size={16} /> View Batches
                       </button>
                     </td>
                     <td className="px-6 py-4">
-                      {product.is_low_stock ? (
-                        <span className="inline-flex items-center gap-1 bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300 px-3 py-1 rounded-full text-sm font-semibold"><FiAlertTriangle size={14} /> Low Stock</span>
+                      {isOutOfStock ? (
+                        <span className="inline-flex items-center gap-1 bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 px-3 py-1 rounded-full text-sm font-semibold"><FiAlertTriangle size={14} /> Out of Stock</span>
+                      ) : isLowStock ? (
+                        <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 px-3 py-1 rounded-full text-sm font-semibold"><FiAlertTriangle size={14} /> Low Stock</span>
                       ) : (
                         <span className="bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 px-3 py-1 rounded-full text-sm font-semibold">In Stock</span>
                       )}
@@ -278,7 +382,8 @@ const StockManagement = () => {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

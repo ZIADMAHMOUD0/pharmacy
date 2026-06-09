@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # ── Gemini config ────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.environ.get(
     'GEMINI_API_KEY',
-    'AIzaSyA1orHNBEgjpiUXYrOglixP0gs-nj97xsw'
+    'AIzaSyDblyzx_dr3_O_A8mQ9CQTUwMxu2bf9SdU'
 )
 GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
 

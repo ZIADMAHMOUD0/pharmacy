@@ -32,6 +32,10 @@ const ManageProducts = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  // 'all' | 'low' | 'out' — controlled by the clickable stat cards below.
+  // Resets to 'all' whenever the underlying products array changes (e.g. cache
+  // refetch) so a refresh never leaves the UI stranded in an empty filter.
+  const [stockFilter, setStockFilter] = useState('all');
   // Only show the skeleton when there's nothing to render yet — background
   // revalidation must never replace cards with a spinner.
   const loading = productsLoading && products.length === 0;
@@ -223,31 +227,47 @@ const ManageProducts = () => {
   const filteredProducts = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     const cat = filterCategory ? parseInt(filterCategory, 10) : null;
-    if (!q && cat == null) return products;
+    if (!q && cat == null && stockFilter === 'all') return products;
     return products.filter((p) => {
       const matchesSearch =
         !q ||
         p.name.toLowerCase().includes(q) ||
         p.manufacturer?.toLowerCase().includes(q);
       const matchesCategory = cat == null || p.category === cat;
-      return matchesSearch && matchesCategory;
+      // Mutually exclusive stock buckets — see the stats memo below for the
+      // matching definition (out-of-stock is NOT a sub-case of low-stock).
+      const matchesStock =
+        stockFilter === 'all' ||
+        (stockFilter === 'low' && p.is_low_stock && p.total_stock > 0) ||
+        (stockFilter === 'out' && p.total_stock === 0);
+      return matchesSearch && matchesCategory && matchesStock;
     });
-  }, [products, deferredSearch, filterCategory]);
+  }, [products, deferredSearch, filterCategory, stockFilter]);
 
   // Single pass over the products list to compute all three stats at once,
   // memoized so it only recomputes when the products array reference changes.
+  // The buckets are mutually exclusive: a product with `total_stock === 0`
+  // counts only towards `out`, never `low`, even though the backend's
+  // `is_low_stock` is True for it (since `total_stock <= threshold`).
   const stats = useMemo(() => {
     let low = 0;
     let out = 0;
     for (const p of products) {
-      if (p.is_low_stock) low += 1;
       if (p.total_stock === 0) out += 1;
+      else if (p.is_low_stock) low += 1;
     }
     return { total: products.length, low, out };
   }, [products]);
   const totalProducts = stats.total;
   const lowStockProducts = stats.low;
   const outOfStock = stats.out;
+
+  // Reset the stock filter whenever the products list itself changes
+  // (e.g. cache refetch after a write). Otherwise a stale filter could keep
+  // the grid empty after a deletion.
+  useEffect(() => {
+    setStockFilter('all');
+  }, [products]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -288,20 +308,43 @@ const ManageProducts = () => {
             </button>
           </div>
 
-          {/* Stats */}
+          {/* Stats — each card doubles as a filter toggle for the grid below.
+              Clicking the same card again, or the "Total Products" card,
+              clears the stock filter back to All. */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 max-w-3xl">
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10">
+            <button
+              type="button"
+              onClick={() => setStockFilter('all')}
+              aria-pressed={stockFilter === 'all'}
+              className={`text-left bg-white/10 backdrop-blur-sm rounded-2xl p-5 border border-white/10 transition-all hover:bg-white/15 ${
+                stockFilter === 'all' ? 'ring-2 ring-white/50 bg-white/15' : ''
+              }`}
+            >
               <p className="text-4xl font-display font-bold text-white">{totalProducts}</p>
               <p className="text-white/60 text-sm font-medium">Total Products</p>
-            </div>
-            <div className="bg-amber-500/20 backdrop-blur-sm rounded-2xl p-5 border border-amber-400/20">
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockFilter((prev) => (prev === 'low' ? 'all' : 'low'))}
+              aria-pressed={stockFilter === 'low'}
+              className={`text-left bg-amber-500/20 backdrop-blur-sm rounded-2xl p-5 border border-amber-400/20 transition-all hover:bg-amber-500/30 ${
+                stockFilter === 'low' ? 'ring-2 ring-amber-200/70 bg-amber-500/30' : ''
+              }`}
+            >
               <p className="text-4xl font-display font-bold text-amber-100">{lowStockProducts}</p>
               <p className="text-amber-200/70 text-sm font-medium">Low Stock</p>
-            </div>
-            <div className="bg-rose-500/20 backdrop-blur-sm rounded-2xl p-5 border border-rose-400/20">
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockFilter((prev) => (prev === 'out' ? 'all' : 'out'))}
+              aria-pressed={stockFilter === 'out'}
+              className={`text-left bg-rose-500/20 backdrop-blur-sm rounded-2xl p-5 border border-rose-400/20 transition-all hover:bg-rose-500/30 ${
+                stockFilter === 'out' ? 'ring-2 ring-rose-200/70 bg-rose-500/30' : ''
+              }`}
+            >
               <p className="text-4xl font-display font-bold text-rose-100">{outOfStock}</p>
               <p className="text-rose-200/70 text-sm font-medium">Out of Stock</p>
-            </div>
+            </button>
           </div>
         </div>
       </section>
@@ -324,12 +367,12 @@ const ManageProducts = () => {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
-              <input 
-                type="text" 
-                placeholder="Search products by name or manufacturer..." 
-                className="w-full pl-12 pr-4 py-3.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
-                value={searchQuery} 
-                onChange={(e) => setSearchQuery(e.target.value)} 
+              <input
+                type="text"
+                placeholder="Search products by name or manufacturer..."
+                className="w-full pl-12 pr-4 py-3.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <div className="relative">
@@ -346,6 +389,27 @@ const ManageProducts = () => {
               </select>
             </div>
           </div>
+          {/* Active-stock-filter chip — only visible when a stat card is
+              selected, so the admin can still see (and clear) the filter
+              after scrolling past the hero. */}
+          {stockFilter !== 'all' && (
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-slate-500 dark:text-slate-400">Filtered by:</span>
+              <button
+                type="button"
+                onClick={() => setStockFilter('all')}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                  stockFilter === 'low'
+                    ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/25'
+                    : 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 hover:bg-rose-100 dark:hover:bg-rose-500/25'
+                }`}
+                aria-label="Clear stock filter"
+              >
+                {stockFilter === 'low' ? 'Low Stock' : 'Out of Stock'}
+                <FiX size={14} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Products Grid */}

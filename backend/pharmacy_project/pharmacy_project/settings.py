@@ -42,7 +42,7 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
 # Set AI Model
-os.environ['OPENROUTER_API_KEY'] = 'AIzaSyA1orHNBEgjpiUXYrOglixP0gs-nj97xsw'
+os.environ['OPENROUTER_API_KEY'] = 'AIzaSyDblyzx_dr3_O_A8mQ9CQTUwMxu2bf9SdU'
 os.environ['OPENROUTER_MODEL'] = 'any-other/model:free'
 # Application definition
 

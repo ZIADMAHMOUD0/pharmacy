@@ -10,15 +10,17 @@ describe('Customer flows (ziad)', () => {
   it('visits Ask Doctor and creates then deletes a question', () => {
     cy.visit('/ask-doctor');
     cy.contains('Ask a Doctor').should('be.visible');
-    cy.get('input[placeholder="Question Title *"], input[placeholder*="Title"]').type('E2E Headache');
-    cy.get('textarea').first().type('I have a headache, what should I take?');
-    cy.contains('Submit').click();
+    // Title is the first text input inside the "Submit a New Question" form.
+    cy.get('form input[type="text"]').first().type('E2E Headache');
+    cy.get('form textarea').first().type('I have a headache, what should I take?');
+    cy.contains('button', /Submit Question/i).click();
     cy.contains('Question submitted').should('exist');
     cy.contains('E2E Headache').should('exist');
     // delete via trash button
     cy.get('button[title="Delete Question"]').first().click();
     cy.contains('Delete Question').should('be.visible');
-    cy.contains('Delete').click();
+    // Click the modal's confirm button (text === confirmText "Delete").
+    cy.contains('button', /^Delete$/).click();
     cy.contains('deleted successfully', { matchCase: false }).should('exist');
   });
 

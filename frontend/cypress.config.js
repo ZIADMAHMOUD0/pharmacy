@@ -1,7 +1,12 @@
 module.exports = {
   e2e: {
     baseUrl: 'http://localhost:3001',
-    video: false,
+    video: true,
+    // Desktop viewport (>= lg breakpoint, 1024px) so the desktop navbar
+    // (hidden on narrow screens via `hidden lg:flex`) is rendered and its
+    // nav links are visible to the tests.
+    viewportWidth: 1280,
+    viewportHeight: 800,
     env: {
       apiUrl: 'http://localhost:8000/api',
       adminUser: 'admin',
